@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>LuaU Deobfuscater (Light) — Safe Semantic Rename</title>
+<title>LuaU Deobfuscater (Light)</title>
 <style>
 :root{--bg:#071022;--panel:#0b1530;--accent:#00e6ff}
 body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,monospace;background:linear-gradient(135deg,var(--bg),#07162a);color:#dff;display:flex;align-items:center;justify-content:center;height:100vh;padding:14px}
@@ -26,7 +26,7 @@ small.note{color:#9bd;font-size:.85rem}
 <div class="container">
   <header>
     <h1>LuaU Deobfuscater (Light)</h1>
-    <small class="note">Safe semantic renaming & improved decoding — runs entirely in your browser.</small>
+    <small class="note">Now decodes escaped numeric ASCII sequences like \117\115\101... — runs entirely in your browser.</small>
   </header>
 
   <div style="display:flex;gap:12px;">
@@ -68,7 +68,7 @@ function hexToText(h){ try{ h=h.replace(/[^0-9a-fA-F]/g,''); if(h.length%2!==0) 
 function tryUrlDecode(s){ try{ return decodeURIComponent(s) }catch(e){ return null } }
 function rot13(s){ return s.replace(/[A-Za-z]/g,function(c){ const b = c<='Z'?65:97; return String.fromCharCode((c.charCodeAt(0)-b+13)%26 + b) }) }
 
-// tokenize code into array of {type:'string'|'comment'|'ident'|'other', text }
+// tokenization that preserves strings and comments
 function tokenizePreserve(code){
   const tokens = []
   const regex = /--\[\[[\s\S]*?\]\]|--[^\n]*|("([^"\\]|\\.)*"|'([^'\\]|\\.)*')|[A-Za-z_][A-Za-z0-9_]*|./g
@@ -82,19 +82,38 @@ function tokenizePreserve(code){
   }
   return tokens
 }
-
-// reconstruct code from tokens
 function tokensToString(tokens){ return tokens.map(t=>t.text).join('') }
 
-// replace identifiers in tokens using map; safe because strings/comments are separate
-function replaceIdTokens(tokens, map){
-  for(let t of tokens){
-    if(t.type==='ident' && map.hasOwnProperty(t.text)) t.text = map[t.text]
-  }
-  return tokens
+// decode sequences like \117 into characters
+function decodeEscapedNumbersInString(s){
+  return s.replace(/\\([0-9]{1,3})/g, function(_, num){
+    const n = parseInt(num, 10)
+    if(isNaN(n) || n < 0 || n > 255) return '\\' + num
+    return String.fromCharCode(n)
+  })
 }
 
-// decode string.char(65,66,67) -> "ABC"
+// decode escaped sequences inside tokens: strings and other tokens (safe)
+function decodeEscapedNumbersTokens(code){
+  const tokens = tokenizePreserve(code)
+  for(let t of tokens){
+    if(t.type === 'string'){
+      const q = t.text[0]
+      const inner = unquote(t.text)
+      const dec = decodeEscapedNumbersInString(inner)
+      if(dec !== inner && isAscii(dec)) t.text = q + dec + q
+    } else if(t.type === 'other'){
+      // if there's a long run of \ddd sequences (more than 3 of them), decode them
+      if(/(?:\\\d{1,3}){3,}/.test(t.text)){
+        const dec = decodeEscapedNumbersInString(t.text)
+        if(dec !== t.text && isAscii(dec)) t.text = dec
+      }
+    }
+  }
+  return tokensToString(tokens)
+}
+
+// decode string.char(65,66,67)
 function decodeStringCharCalls(code){
   return code.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/gi, function(_, nums){
     try{
@@ -107,7 +126,7 @@ function decodeStringCharCalls(code){
   })
 }
 
-// collapse "a".."b" chains repeatedly
+// collapse concatenated literals
 function collapseConcats(code){
   let prev
   do {
@@ -123,25 +142,25 @@ function collapseConcats(code){
   return code
 }
 
-// decode string literal tokens if they are base64/hex/url/rot13
+// heuristics to decode string literals (base64/hex/url/rot13 and decode escaped numbers first)
 function decodeLiteralsByHeuristics(code, opts){
   const tokens = tokenizePreserve(code)
   for(let t of tokens){
     if(t.type !== 'string') continue
     const q = t.text[0]
-    const inner = unquote(t.text)
+    let inner = unquote(t.text)
+    inner = decodeEscapedNumbersInString(inner)
     if(inner.length===0) continue
     if(looksLikeBase64(inner)){
       const dec = safeAtob(inner)
-      if(dec && isAscii(dec)) { t.text = q + dec + q; continue }
+      if(dec && isAscii(dec)){ t.text = q + dec + q; continue }
     }
     const hx = hexToText(inner)
     if(hx && isAscii(hx)){ t.text = q + hx + q; continue }
     const ud = tryUrlDecode(inner)
     if(ud && isAscii(ud)){ t.text = q + ud + q; continue }
     const r13 = rot13(inner)
-    if(r13 && isAscii(r13) && /local|function|print|game|Players/.test(r13)) { t.text = q + r13 + q; continue }
-    // try small XOR brute (1..64) only if enabled
+    if(r13 && isAscii(r13) && /local|function|print|game|Players/.test(r13)){ t.text = q + r13 + q; continue }
     if(opts && opts.xorBrute){
       for(let k=1;k<=64;k++){
         let out = ''
@@ -156,13 +175,14 @@ function decodeLiteralsByHeuristics(code, opts){
   return tokensToString(tokens)
 }
 
-// brute-force XOR on string literals (optional heavier)
+// heavier XOR brute on literals if opted
 function bruteForceXorOnLiterals(code, maxKey){
   maxKey = typeof maxKey === 'number' ? maxKey : 255
   const tokens = tokenizePreserve(code)
   for(let t of tokens){
     if(t.type !== 'string') continue
-    const q = t.text[0], inner = unquote(t.text)
+    const q = t.text[0], innerRaw = unquote(t.text)
+    const inner = decodeEscapedNumbersInString(innerRaw)
     if(inner.length < 4) continue
     for(let k=1;k<=maxKey;k++){
       let out = ''
@@ -176,10 +196,11 @@ function bruteForceXorOnLiterals(code, maxKey){
   return tokensToString(tokens)
 }
 
-// unwrap wrappers like b64decode("...") and xorDecode("...",N) when they contain literal encoded content
+// unwrap common wrapper calls
 function unwrapWrapperCalls(code){
   code = code.replace(/b64decode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g, function(m, p1){
-    const inner = unquote(p1)
+    const inner0 = unquote(p1)
+    const inner = decodeEscapedNumbersInString(inner0)
     if(!inner) return m
     if(looksLikeBase64(inner)){
       const dec = safeAtob(inner)
@@ -188,7 +209,8 @@ function unwrapWrapperCalls(code){
     return m
   })
   code = code.replace(/xorDecode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*,\s*(\d{1,3})\s*\)/g, function(m, p1, p2, p3, keyStr){
-    const inner = unquote(p1)
+    const inner0 = unquote(p1)
+    const inner = decodeEscapedNumbersInString(inner0)
     const key = parseInt(keyStr, 10)
     if(!inner || isNaN(key)) return m
     let out = ''
@@ -199,46 +221,44 @@ function unwrapWrapperCalls(code){
   return code
 }
 
-// safe loadstring extraction: only extract when argument is a string and decodes to ascii
+// extract loadstring safely
 function extractLoadstring(code){
   return code.replace(/loadstring\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g, function(m, p1){
-    const inner = unquote(p1)
+    const inner0 = unquote(p1)
+    const inner = decodeEscapedNumbersInString(inner0)
     if(!inner) return m
     if(looksLikeBase64(inner)){
       const dec = safeAtob(inner)
       if(dec && isAscii(dec)) return dec
     }
-    // if inner looks like escaped code (contains newline and lua keywords), return inner
     if(inner.indexOf('\\n') !== -1 && /local|function|end|print|game/.test(inner)) return inner
     return m
   })
 }
 
-// remove junk patterns conservatively
+// safe junk removal
 function removeJunk(code){
   let out = code
   out = out.replace(/if\s+_[A-Za-z0-9]{3,}\s*==\s*math\.random\s*\([^\)]*\)\s*then[\s\S]*?end/g, '')
   out = out.replace(/local\s+_[A-Za-z0-9]{3,}\s*=[^\n]+\n/g, '')
   out = out.replace(/function\s+_[A-Za-z0-9]{3,}\([^)]*\)\s*[\s\S]*?end/g, '')
-  out = out.replace(/;\s*$/gm,'') // remove stray semicolons
+  out = out.replace(/;\s*$/gm,'')
   return out
 }
 
-// identify obfuscated names: conservative
+// conservative obfuscated name detector
 function isObfuscatedName(name){
   if(!name) return false
   if(/^_[A-Za-z0-9]{3,}$/.test(name)) return true
   if(/^v[0-9A-Za-z]{2,}$/.test(name)) return true
   if(name.length >= 10) return true
-  // many uppercase sequences: likely obfuscated
   if(/[A-Z]{3,}/.test(name)) return true
-  // too noisy: many unique chars
   const uniq = new Set(name.split('')).size
   if(name.length >=5 && uniq / name.length > 0.75) return true
   return false
 }
 
-// collect local declarations safely (simple heuristic)
+// collect local declarations
 function collectLocalDeclarations(code){
   const decls = []
   const regex = /\blocal\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*([^;\n]+))?/g
@@ -249,72 +269,64 @@ function collectLocalDeclarations(code){
   return decls
 }
 
-// generate a safe, semantic name from value if confident
+// name from value heuristics
 function nameFromValue(value, usedNames){
   usedNames = usedNames || new Set()
   if(!value) return null
   const s = value.trim()
   if(/^['"]/.test(s)){
-    const inner = unquote(s.split(/\)\s*$/)[0])
+    let inner = unquote(s)
+    inner = decodeEscapedNumbersInString(inner)
+    inner = inner.replace(/[^A-Za-z0-9 ]+/g,' ').trim()
     if(inner.length===0) return null
-    let base = inner.replace(/[^A-Za-z0-9 ]+/g,' ').trim().split(/\s+/).slice(0,3).join('')
-    base = base || 'Text'
-    base = base.replace(/^\d+/,'')
-    const candidate = base[0] ? base[0].toUpperCase() + base.slice(1) : 'Text'
-    let out = candidate
-    let i=1
-    while(usedNames.has(out)) { out = candidate + i; i++ }
+    let base = inner.split(/\s+/).slice(0,3).join('')
+    base = base.replace(/^\d+/,'') || 'Text'
+    let candidate = base[0] ? base[0].toUpperCase() + base.slice(1) : 'Text'
+    let out = candidate, i=1
+    while(usedNames.has(out)){ out = candidate + i; i++ }
     usedNames.add(out)
     return out
   }
-  if(/^\d+$/.test(s)) {
-    let out = 'Count'
-    let i=1
-    while(usedNames.has(out+i)) i++
-    out = out + i
-    usedNames.add(out)
-    return out
-  }
-  if(/^function\b/.test(s) || s.indexOf('function')===0) {
-    let base = 'Do'
-    let i=1
+  if(/^\d+$/.test(s)){
+    let base = 'Count', i=1
     while(usedNames.has(base + i)) i++
-    const out = base + i
-    usedNames.add(out)
-    return out
+    usedNames.add(base + i)
+    return base + i
   }
-  if(/\btrue\b|\bfalse\b/.test(s)) {
-    let out = 'IsFlag'
-    let i=1
-    while(usedNames.has(out + i)) i++
-    usedNames.add(out + i)
-    return out + i
+  if(/^function\b/.test(s) || s.indexOf('function')===0){
+    let base='Do', i=1
+    while(usedNames.has(base + i)) i++
+    usedNames.add(base + i)
+    return base + i
+  }
+  if(/\btrue\b|\bfalse\b/.test(s)){
+    let base='IsFlag', i=1
+    while(usedNames.has(base + i)) i++
+    usedNames.add(base + i)
+    return base + i
   }
   return null
 }
 
-// perform safe semantic renaming: only locals that are obfuscated and not used as table fields
+// safe semantic rename for obfuscated locals
 function safeSemanticRename(code){
   const decls = collectLocalDeclarations(code)
   if(decls.length===0) return code
   const tokens = tokenizePreserve(code)
-  const usedNames = new Set()
-  for(const t of tokens) if(t.type==='ident') usedNames.add(t.text)
+  const existing = new Set()
+  for(const t of tokens) if(t.type==='ident') existing.add(t.text)
   const map = {}
-  const usedNew = new Set(usedNames)
+  const usedNew = new Set(existing)
   for(const d of decls){
     const name = d.name
     if(!isObfuscatedName(name)) continue
-    // make sure it's not used as a field: pattern like obj.<name> or :<name>
     const fieldRegex = new RegExp('\\.' + name + '\\b|\\:' + name + '\\b')
     if(fieldRegex.test(code)) continue
-    // attempt to generate a semantic name from value
     let candidate = null
     try { candidate = nameFromValue(d.value, usedNew) } catch(e) { candidate = null }
     if(!candidate){
-      // fallback: derive short readable name from original but not numeric-only
       let cleaned = name.replace(/[^A-Za-z]/g,'')
-      if(cleaned.length>=3) candidate = cleaned[0].toUpperCase() + cleaned.slice(1)
+      if(cleaned.length >= 3) candidate = cleaned[0].toUpperCase() + cleaned.slice(1)
       else candidate = 'Var' + (Math.floor(Math.random()*9000)+1000)
       while(usedNew.has(candidate)) candidate += '_'
       usedNew.add(candidate)
@@ -322,7 +334,6 @@ function safeSemanticRename(code){
     map[name] = candidate
   }
   if(Object.keys(map).length===0) return code
-  // replace identifiers safely using tokens (so we never replace inside strings/comments)
   const newTokens = tokens.map(t=>{
     if(t.type==='ident' && map.hasOwnProperty(t.text)) return {type:t.type, text: map[t.text]}
     return t
@@ -330,7 +341,6 @@ function safeSemanticRename(code){
   return tokensToString(newTokens)
 }
 
-// simple beautifier
 function beautify(code){
   const lines = code.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n')
   let indent = 0, out = []
@@ -354,10 +364,11 @@ async function deepDeobfuscate(fullClean){
   const maxIter = 25
   while(iter++ < maxIter){
     const before = code
+    code = decodeEscapedNumbersTokens(code)
     code = decodeStringCharCalls(code)
     code = collapseConcats(code)
     code = unwrapWrapperCalls(code)
-    code = decodeLiteralsByHeuristics(code, {xorBrute: false})
+    code = decodeLiteralsByHeuristics(code, {xorBrute:false})
     if(doXor) code = bruteForceXorOnLiterals(code, 255)
     if(doExtract) code = extractLoadstring(code)
     code = removeJunk(code)
@@ -378,10 +389,11 @@ async function deepDeobfuscate(fullClean){
 function quickPass(){
   let code = document.getElementById('inputCode').value || ''
   if(!code){ alert('Paste code first'); return }
+  code = decodeEscapedNumbersTokens(code)
   code = decodeStringCharCalls(code)
   code = collapseConcats(code)
   code = unwrapWrapperCalls(code)
-  code = decodeLiteralsByHeuristics(code, {xorBrute: true})
+  code = decodeLiteralsByHeuristics(code, {xorBrute:true})
   code = removeJunk(code)
   code = safeSemanticRename(code)
   if(document.getElementById('beautify').checked) code = beautify(code)
