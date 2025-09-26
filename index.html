@@ -115,11 +115,10 @@
             <button onclick="copyCode()">Copy Code</button>
         </div>
         <h2>Obfuscated Code</h2>
-        <div id="output"></div>
+        <div id="output">Obfuscated code will appear here...</div>
     </div>
 
     <script>
-        // Sample Luau code if none provided
         const defaultCode = `local player = game.Players.LocalPlayer
 local function greet(name)
     print("Hello, " .. name .. "!")
@@ -129,7 +128,6 @@ for i = 1, 5 do
     print("Count: " .. i)
 end`;
 
-        // Base64 decode function for Luau
         const base64DecodeFn = `
 local function b64decode(str)
     local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -155,7 +153,6 @@ local function b64decode(str)
 end
 `;
 
-        // XOR decode function for Luau
         const xorDecodeFn = `
 local function xorDecode(str, key)
     local result = {}
@@ -167,28 +164,30 @@ local function xorDecode(str, key)
 end
 `;
 
-        // Anti-tamper function (simple hash check example)
         const antiTamperFn = `
 local function checkTamper()
-    local scriptSource = [[${placeholder}]]  -- Placeholder for script hash or source
-    if game:GetService("HttpService"):GenerateGUID(false) ~= scriptSource then  -- Simplified tamper check
+    local scriptSource = "${placeholder}"
+    if game:GetService("HttpService"):GenerateGUID(false) ~= scriptSource then
         error("Script tampered!")
     end
 end
 checkTamper()
 `;
 
-        // 24/7 protection (infinite loop in a thread to "protect" - caution: may impact performance)
         const protection247Fn = `
 spawn(function()
     while true do
         wait(1)
-        -- 24/7 monitoring (empty for now, can add checks)
     end
 end)
 `;
 
-        // Obfuscation functions
+        function removeComments(code) {
+            return code
+                .replace(/--\[\[[\s\S]*?\]\]/g, '') // Remove multi-line comments
+                .replace(/--[^\n]*/g, ''); // Remove single-line comments
+        }
+
         function obfuscate(type) {
             let code = document.getElementById('inputCode').value || defaultCode;
             let output = '';
@@ -240,9 +239,7 @@ end
                 temp = lines.join('\n' + junkCode) + '\n' + junkCode;
             }
 
-            // Apply toggles
             if (antiTamper) {
-                // Add anti-tamper (use a placeholder hash; in real use, compute actual hash)
                 temp = antiTamperFn.replace('${placeholder}', randomString(32)) + temp;
             }
 
@@ -251,24 +248,21 @@ end
             }
 
             if (maxProtection) {
-                // Enhance with more layers (e.g., double encode strings)
                 temp = temp.replace(/b64decode\("([^"]*)"\)/g, (match, encoded) => {
-                    let doubleEncoded = btoa(atob(encoded));  // Double Base64
+                    let doubleEncoded = btoa(atob(encoded));
                     return `b64decode("${doubleEncoded}")`;
                 });
             }
 
             if (over80kb) {
-                // Add junk to make >80KB (repeat junk code many times)
                 let junk = '';
-                const junkBlock = `local ${randomString(10)} = math.random(); -- junk\n`.repeat(1000);  // ~10KB per 1000 lines
-                for (let i = 0; i < 10; i++) {  // Aim for >80KB
+                const junkBlock = `local ${randomString(10)} = math.random()\n`.repeat(1000);
+                for (let i = 0; i < 10; i++) {
                     junk += junkBlock;
                 }
                 temp = junk + temp + junk;
             }
 
-            // Prepend decoders if needed
             if (type === 'base64' || type === 'max') {
                 output += base64DecodeFn;
             }
@@ -277,20 +271,25 @@ end
             }
 
             output += temp;
-            document.getElementById('output').textContent = output;
+
+            output = removeComments(output);
+
+            document.getElementById('output').textContent = output || 'Error: No output generated';
         }
 
-        // Copy code to clipboard
         function copyCode() {
             const output = document.getElementById('output').textContent;
-            navigator.clipboard.writeText(output).then(() => {
-                alert('Code copied to clipboard!');
-            }).catch(err => {
-                alert('Failed to copy: ' + err);
-            });
+            if (output && output !== 'Obfuscated code will appear here...') {
+                navigator.clipboard.writeText(output).then(() => {
+                    alert('Code copied to clipboard!');
+                }).catch(err => {
+                    alert('Failed to copy: ' + err);
+                });
+            } else {
+                alert('No code to copy!');
+            }
         }
 
-        // Generate random string for variable names
         function randomString(length) {
             const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
             let result = '_';
@@ -300,13 +299,22 @@ end
             return result;
         }
 
-        // Base64 encode (built-in btoa for simplicity)
         function btoa(str) {
-            return btoa(unescape(encodeURIComponent(str)));
+            try {
+                return btoa(unescape(encodeURIComponent(str)));
+            } catch (e) {
+                console.error('Base64 encoding failed:', e);
+                return str;
+            }
         }
 
         function atob(str) {
-            return decodeURIComponent(escape(window.atob(str)));
+            try {
+                return decodeURIComponent(escape(window.atob(str)));
+            } catch (e) {
+                console.error('Base64 decoding failed:', e);
+                return str;
+            }
         }
     </script>
 </body>
