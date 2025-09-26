@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luau Code Obfuscator</title>
+    <title>Luau Code Deobfuscator</title>
     <style>
         body {
             background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
@@ -107,38 +107,29 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="glow">Luau Code Obfuscator</h1>
-        <textarea id="inputCode" placeholder="Enter your Luau code here..."></textarea>
+        <h1 class="glow">Luau Code Deobfuscator</h1>
+        <textarea id="inputCode" placeholder="Enter your obfuscated Luau code here..."></textarea>
         <div class="toggles">
-            <label><input type="checkbox" id="antiTamper"> Anti Tamper</label>
-            <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
-            <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
-            <label><input type="checkbox" id="over5kb"> Over 5KB Size</label>
+            <label><input type="checkbox" id="antiTamper"> Has Anti Tamper</label>
+            <label><input type="checkbox" id="maxProtection"> Has Maximum Protection</label>
+            <label><input type="checkbox" id="24Protection"> Has 24/7 Protection</label>
+            <label><input type="checkbox" id="over5kb"> Has Over 5KB Junk</label>
         </div>
         <div class="buttons">
-            <button onclick="obfuscate('base64')">Base64 Strings</button>
-            <button onclick="obfuscate('xor')">XOR Strings</button>
-            <button onclick="obfuscate('rename')">Variable Renaming</button>
-            <button onclick="obfuscate('control')">Control Flow</button>
-            <button onclick="obfuscate('max')">Obfuscate Using Everything</button>
+            <button onclick="deobfuscate('base64')">Deobfuscate Base64</button>
+            <button onclick="deobfuscate('xor')">Deobfuscate XOR</button>
+            <button onclick="deobfuscate('rename')">Simplify Variables</button>
+            <button onclick="deobfuscate('control')">Remove Control Flow</button>
+            <button onclick="deobfuscate('max')">Deobfuscate Everything</button>
             <button onclick="copyCode()">Copy Code</button>
         </div>
-        <h2>Obfuscated Code</h2>
-        <div id="output-type">Select an obfuscation method...</div>
-        <div id="output">Obfuscated code will appear here...</div>
+        <h2>Deobfuscated Code</h2>
+        <div id="output-type">Select a deobfuscation method...</div>
+        <div id="output">Deobfuscated code will appear here...</div>
     </div>
 
     <script>
-        const defaultCode = `local player = game.Players.LocalPlayer
-local function greet(name)
-    print("Hello, " .. name .. "!")
-end
-greet(player.Name)
-for i = 1, 5 do
-    print("Count: " .. i)
-end`;
-
-        const base64DecodeFn = `
+        const defaultCode = `
 local function b64decode(str)
     local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
     local t = {}
@@ -161,9 +152,6 @@ local function b64decode(str)
     end
     return table.concat(r)
 end
-`;
-
-        const xorDecodeFn = `
 local function xorDecode(str, key)
     local result = {}
     for i = 1, #str do
@@ -172,176 +160,156 @@ local function xorDecode(str, key)
     end
     return table.concat(result)
 end
-`;
-
-        const antiTamperFn = `
 local function checkTamper()
-    -- Dummy check that always passes for testing; replace with real logic
     if false then
         error("Script tampered!")
     end
 end
 checkTamper()
-`;
-
-        const protection247Fn = `
 spawn(function()
     while true do
-        wait(10) -- Increased wait time to reduce performance impact
+        wait(10)
     end
 end)
+local _xYzAbCdEfGhIj = math.random()
+local _pQrStUvWxYzAb = math.random()
+local _kLmNoPqRsTuVwXyZ = game.Players.LocalPlayer
+if _aBcDeFgHiJkLm == math.random(1, 100) then
+    local _nOpQrStUvWxY = math.sin(math.random())
+    local _zAbCdEfGhIjKl = math.cos(math.random())
+    local _wXyZaBcDeFgHi = math.tan(math.random())
+else
+    local _nOpQrStUvWxY = math.cos(math.random())
+    local _zAbCdEfGhIjKl = math.sin(math.random())
+    local _wXyZaBcDeFgHi = math.tan(math.random())
+end
+local function _mNoPqRsTuVwXyZaB(_bCdEfGhIjKlMnOpQ)
+    print(b64decode(xorDecode("khoor/#", 42)) .. _bCdEfGhIjKlMnOpQ .. xorDecode("k", 42))
+end
+_mNoPqRsTuVwXyZaB(_kLmNoPqRsTuVwXyZ.Name)
+for _iJkLmNoPqRsTu = 1, 5 do
+    print(xorDecode("Flrjk;%", 42) .. _iJkLmNoPqRsTu)
+end
 `;
 
-        function removeComments(code) {
-            return code
-                .replace(/--\[\[[\s\S]*?\]\]/g, '')
-                .replace(/--[^\n]*/g, '');
-        }
-
-        function obfuscate(type) {
+        function deobfuscate(type) {
             let code = document.getElementById('inputCode').value || defaultCode;
-            let output = '';
+            let output = code;
             const antiTamper = document.getElementById('antiTamper').checked;
             const maxProtection = document.getElementById('maxProtection').checked;
             const protection247 = document.getElementById('24Protection').checked;
             const over5kb = document.getElementById('over5kb').checked;
 
-            let temp = code;
             let outputType = '';
 
-            if (type === 'base64') {
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    return `b64decode("${btoa(str)}")`;
-                });
-                output += base64DecodeFn;
-                outputType = 'Base64 Strings';
+            // Remove comments
+            output = output
+                .replace(/--\[\[[\s\S]*?\]\]/g, '')
+                .replace(/--[^\n]*/g, '');
+
+            // Remove Anti Tamper code if toggle is on
+            if (antiTamper) {
+                output = output.replace(/local function checkTamper\(\)\s*if false then\s*error\("Script tampered!"\)\s*end\s*end\s*checkTamper\(\)/g, '');
             }
 
-            if (type === 'xor') {
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    let encrypted = '';
-                    for (let i = 0; i < str.length; i++) {
-                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ 42);
-                    }
-                    return `xorDecode("${encrypted.replace(/"/g, '\\"')}", 42)`;
-                });
-                output += xorDecodeFn;
-                outputType = 'XOR Strings';
+            // Remove 24/7 Protection code if toggle is on
+            if (protection247) {
+                output = output.replace(/spawn\(function\(\)\s*while true do\s*wait\(10\)\s*end\s*end\)/g, '');
             }
 
-            if (type === 'rename') {
-                temp = temp
-                    .replace(/\blocal\s+(\w+)/g, (match, varName) => {
-                        return `local ${randomString(20)}`;
-                    })
-                    .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
-                        return `function ${randomString(20)}`;
-                    })
-                    .replace(/\b(\w+)\b/g, (match, varName) => {
-                        if (['local', 'function', 'end', 'if', 'then', 'else', 'for', 'do', 'print', 'game', 'Players', 'LocalPlayer', 'Name'].includes(varName)) return varName;
-                        return randomString(20);
+            // Remove 5KB junk code if toggle is on
+            if (over5kb) {
+                output = output.replace(/local _[a-zA-Z_]{9,}\s*=\s*(b64decode\("[^"]*"\)|math\.random\(\))\s*\n/g, '');
+            }
+
+            // Remove control flow junk code
+            if (type === 'control' || type === 'max') {
+                output = output.replace(/if _[a-zA-Z_]+\s*==\s*math\.random\(1,\s*100\)\s*then\s*(local _[a-zA-Z_]+\s*=\s*math\.(sin|cos|tan)\(math\.random\(\)\)\s*){1,3}else\s*(local _[a-zA-Z_]+\s*=\s*math\.(sin|cos|tan)\(math\.random\(\)\)\s*){1,3}end\s*/g, '');
+                outputType = type === 'control' ? 'Remove Control Flow' : outputType;
+            }
+
+            // Deobfuscate Base64 strings
+            if (type === 'base64' || type === 'max') {
+                if (maxProtection) {
+                    // Handle double Base64 decoding
+                    output = output.replace(/b64decode\(b64decode\("([^"]*)"\)\)/g, (match, encoded) => {
+                        try {
+                            let decoded = atob(atob(encoded));
+                            return `"${decoded.replace(/"/g, '\\"')}"`;
+                        } catch (e) {
+                            console.error('Base64 decoding failed:', e);
+                            return match;
+                        }
                     });
-                outputType = 'Variable Renaming';
+                } else {
+                    // Single Base64 decoding
+                    output = output.replace(/b64decode\("([^"]*)"\)/g, (match, encoded) => {
+                        try {
+                            let decoded = atob(encoded);
+                            return `"${decoded.replace(/"/g, '\\"')}"`;
+                        } catch (e) {
+                            console.error('Base64 decoding failed:', e);
+                            return match;
+                        }
+                    });
+                }
+                // Remove b64decode function
+                output = output.replace(/local function b64decode\(str\)\s*local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\+\/'\s*[\s\S]*?return table\.concat\(r\)\s*end/, '');
+                outputType = type === 'base64' ? 'Deobfuscate Base64' : outputType;
             }
 
-            if (type === 'control') {
-                const junkCode = `
-if ${randomString(10)} == math.random(1, 100) then
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-else
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-end
-`;
-                const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode) + '\n' + junkCode;
-                outputType = 'Control Flow';
+            // Deobfuscate XOR strings
+            if (type === 'xor' || type === 'max') {
+                output = output.replace(/xorDecode\("([^"]*)",\s*42\)/g, (match, encoded) => {
+                    let decrypted = '';
+                    for (let i = 0; i < encoded.length; i++) {
+                        decrypted += String.fromCharCode(encoded.charCodeAt(i) ^ 42);
+                    }
+                    return `"${decrypted.replace(/"/g, '\\"')}"`;
+                });
+                // Remove xorDecode function
+                output = output.replace(/local function xorDecode\(str,\s*key\)\s*local result = {}\s*for i = 1, #str do\s*local char = string\.byte\(str,\s*i\)\s*table\.insert\(result,\s*string\.char\(bit32\.bxor\(char,\s*key\)\)\)\s*end\s*return table\.concat\(result\)\s*end/, '');
+                outputType = type === 'xor' ? 'Deobfuscate XOR' : outputType;
+            }
+
+            // Simplify variable names
+            if (type === 'rename' || type === 'max') {
+                let varCounter = 1;
+                let funcCounter = 1;
+                const varMap = {};
+
+                // Collect all random variable names
+                const varNames = new Set();
+                output.replace(/_[a-zA-Z_]{9,}/g, (match) => {
+                    varNames.add(match);
+                });
+
+                // Assign simple names
+                varNames.forEach((varName) => {
+                    if (!varMap[varName]) {
+                        varMap[varName] = output.includes(`function ${varName}`) ? `func${funcCounter++}` : `var${varCounter++}`;
+                    }
+                });
+
+                // Replace variable names
+                output = output.replace(/_[a-zA-Z_]{9,}/g, (match) => varMap[match] || match);
+                outputType = type === 'rename' ? 'Simplify Variables' : outputType;
             }
 
             if (type === 'max') {
-                // Apply all obfuscations sequentially
-                // 1. Variable Renaming (enhanced)
-                temp = temp
-                    .replace(/\blocal\s+(\w+)/g, (match, varName) => {
-                        return `local ${randomString(20)}`;
-                    })
-                    .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
-                        return `function ${randomString(20)}`;
-                    })
-                    .replace(/\b(\w+)\b/g, (match, varName) => {
-                        if (['local', 'function', 'end', 'if', 'then', 'else', 'for', 'do', 'print', 'game', 'Players', 'LocalPlayer', 'Name'].includes(varName)) return varName;
-                        return randomString(20);
-                    });
-
-                // 2. Control Flow (enhanced with more junk)
-                const junkCode = `
-if ${randomString(10)} == math.random(1, 100) then
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-else
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-end
-`;
-                const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode + junkCode) + '\n' + junkCode;
-
-                // 3. String obfuscation: Base64 and XOR mixed
-                let stringCount = 0;
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    stringCount++;
-                    let encoded = btoa(str);
-                    let encrypted = '';
-                    for (let i = 0; i < encoded.length; i++) {
-                        encrypted += String.fromCharCode(encoded.charCodeAt(i) ^ 42);
-                    }
-                    return `b64decode(xorDecode("${encrypted.replace(/"/g, '\\"')}", 42))`;
-                });
-
-                output += base64DecodeFn + xorDecodeFn;
-                outputType = 'Obfuscate Using Everything';
+                outputType = 'Deobfuscate Everything';
             }
 
-            if (antiTamper) {
-                temp = antiTamperFn + temp;
-            }
+            // Clean up empty lines and extra whitespace
+            output = output.replace(/\n\s*\n/g, '\n').trim();
 
-            if (protection247) {
-                temp = protection247Fn + temp;
-            }
-
-            if (maxProtection) {
-                temp = temp.replace(/b64decode\((xorDecode\("([^"]*)"\, 42\))\)/g, (match, inner, encoded) => {
-                    let doubleInner = btoa(atob(encoded));
-                    return `b64decode(b64decode(xorDecode("${doubleInner}", 42)))`;
-                });
-            }
-
-            if (over5kb) {
-                let junk = '';
-                const junkBlock = () => `local ${randomString(10)} = b64decode("${btoa(randomString(50))}")\n`;
-                for (let i = 0; i < 100; i++) {
-                    junk += junkBlock();
-                }
-                temp = junk + temp + junk;
-            }
-
-            output += temp;
-
-            output = removeComments(output);
-
-            document.getElementById('output-type').textContent = `Obfuscation Type: ${outputType}`;
+            document.getElementById('output-type').textContent = `Deobfuscation Type: ${outputType || 'Unknown'}`;
             document.getElementById('output').textContent = output || 'Error: No output generated';
         }
 
         function copyCode() {
             const output = document.getElementById('output').textContent;
-            if (output && output !== 'Obfuscated code will appear here...') {
+            if (output && output !== 'Deobfuscated code will appear here...') {
                 navigator.clipboard.writeText(output).then(() => {
                     alert('Code copied to clipboard!');
                 }).catch(err => {
@@ -349,24 +317,6 @@ end
                 });
             } else {
                 alert('No code to copy!');
-            }
-        }
-
-        function randomString(length) {
-            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-            let result = '_';
-            for (let i = 0; i < length - 1; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
-        }
-
-        function btoa(str) {
-            try {
-                return btoa(unescape(encodeURIComponent(str)));
-            } catch (e) {
-                console.error('Base64 encoding failed:', e);
-                return str;
             }
         }
 
