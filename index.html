@@ -1,383 +1,308 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luau Code Obfuscator</title>
-    <style>
-        body {
-            background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
-            color: #ffffff;
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            overflow: auto;
-        }
-        .container {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            width: 700px;
-            max-width: 90%;
-            text-align: center;
-            backdrop-filter: blur(10px);
-        }
-        h1 {
-            font-size: 2em;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #00ffff;
-        }
-        textarea {
-            width: 100%;
-            height: 150px;
-            background: #2e2e4e;
-            border: 1px solid #00ffff;
-            border-radius: 10px;
-            color: #ffffff;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            resize: none;
-            box-sizing: border-box;
-        }
-        .buttons {
-            margin: 20px 0;
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-        }
-        .toggles {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-        }
-        button {
-            padding: 10px 20px;
-            background: linear-gradient(45deg, #00ffff, #ff00ff);
-            border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            font-size: 1em;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-            margin: 5px;
-        }
-        button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
-        }
-        label {
-            margin: 5px;
-            font-size: 0.9em;
-        }
-        #output {
-            background: #1e1e2f;
-            border: 1px solid #ff00ff;
-            border-radius: 10px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-x: auto;
-            overflow-y: auto;
-            text-align: left;
-            font-family: 'Courier New', monospace;
-            white-space: pre-wrap;
-            box-sizing: border-box;
-        }
-        #output-type {
-            font-size: 0.9em;
-            color: #00ffff;
-            margin-bottom: 10px;
-        }
-        .glow {
-            animation: glow 1.5s ease-in-out infinite alternate;
-        }
-        @keyframes glow {
-            from {
-                box-shadow: 0 0 10px #00ffff;
-            }
-            to {
-                box-shadow: 0 0 20px #ff00ff;
-            }
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Luau Deobfuscator</title>
+<style>
+    body { background: linear-gradient(135deg,#1e1e2f,#2a2a4e); color:#fff; font-family:Arial, sans-serif; display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; overflow:auto; }
+    .container { background:rgba(0,0,0,0.7); padding:20px; border-radius:15px; box-shadow:0 0 20px rgba(0,255,255,0.3); width:700px; max-width:90%; text-align:center; backdrop-filter:blur(10px); }
+    h1 { font-size:2em; margin-bottom:20px; text-shadow:0 0 10px #00ffff; }
+    textarea { width:100%; height:170px; background:#2e2e4e; border:1px solid #00ffff; border-radius:10px; color:#fff; padding:10px; font-family:'Courier New', monospace; resize:none; box-sizing:border-box; }
+    .buttons { margin:20px 0; display:flex; justify-content:space-around; flex-wrap:wrap; }
+    .toggles { margin:10px 0; display:flex; justify-content:space-around; flex-wrap:wrap; }
+    button { padding:10px 20px; background:linear-gradient(45deg,#00ffff,#ff00ff); border:none; border-radius:5px; color:#fff; font-size:1em; cursor:pointer; transition:transform .2s; margin:5px; }
+    button:hover { transform:scale(1.05); }
+    label { margin:5px; font-size:0.9em; }
+    #output { background:#1e1e2f; border:1px solid #ff00ff; border-radius:10px; padding:15px; max-height:380px; overflow:auto; text-align:left; font-family:'Courier New', monospace; white-space:pre-wrap; box-sizing:border-box; }
+    #output-type { font-size:0.9em; color:#00ffff; margin-bottom:10px; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="glow">Luau Code Obfuscator</h1>
-        <textarea id="inputCode" placeholder="Enter your Luau code here..."></textarea>
-        <div class="toggles">
-            <label><input type="checkbox" id="antiTamper"> Anti Tamper</label>
-            <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
-            <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
-            <label><input type="checkbox" id="over5kb"> Over 5KB Size</label>
-        </div>
-        <div class="buttons">
-            <button onclick="obfuscate('base64')">Base64 Strings</button>
-            <button onclick="obfuscate('xor')">XOR Strings</button>
-            <button onclick="obfuscate('rename')">Variable Renaming</button>
-            <button onclick="obfuscate('control')">Control Flow</button>
-            <button onclick="obfuscate('max')">Obfuscate Using Everything</button>
-            <button onclick="copyCode()">Copy Code</button>
-        </div>
-        <h2>Obfuscated Code</h2>
-        <div id="output-type">Select an obfuscation method...</div>
-        <div id="output">Obfuscated code will appear here...</div>
+<div class="container">
+    <h1>Luau Deobfuscator</h1>
+    <textarea id="inputCode" placeholder="Paste obfuscated Luau here..."></textarea>
+    <div class="toggles">
+        <label><input type="checkbox" id="autoStripJunk" checked> Auto strip junk blocks</label>
+        <label><input type="checkbox" id="tryBruteXor" checked> Try XOR brute force</label>
+        <label><input type="checkbox" id="beautifyOnFinish" checked> Beautify output</label>
+    </div>
+    <div class="buttons">
+        <button onclick="autoDeobfuscate()">Auto Deobfuscate</button>
+        <button onclick="tryXorBruteforce()">Try XOR Brute</button>
+        <button onclick="stripJunkBlocks()">Strip Junk</button>
+        <button onclick="beautifyOutput()">Beautify</button>
+        <button onclick="copyCode()">Copy Output</button>
     </div>
 
-    <script>
-        const defaultCode = `local player = game.Players.LocalPlayer
-local function greet(name)
-    print("Hello, " .. name .. "!")
-end
-greet(player.Name)
-for i = 1, 5 do
-    print("Count: " .. i)
-end`;
+    <div id="output-type">Status: Idle</div>
+    <div id="output">Deobfuscated code will appear here...</div>
+</div>
 
-        const base64DecodeFn = `
-local function b64decode(str)
-    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-    local t = {}
-    for i = 1, #str do
-        local c = string.sub(str, i, i)
-        if c ~= '=' then
-            local v = string.find(b, c) - 1
-            table.insert(t, v)
-        end
-    end
-    local r = {}
-    for i = 1, #t, 4 do
-        local v1, v2, v3, v4 = t[i], t[i+1], t[i+2], t[i+3]
-        local a = bit32.rshift(v1 * 4 + bit32.rshift(v2, 4), 0)
-        local b = bit32.rshift(bit32.band(v2, 15) * 16 + bit32.rshift(v3 or 0, 2), 0)
-        local c = bit32.rshift(bit32.band(v3 or 0, 3) * 64 + (v4 or 0), 0)
-        table.insert(r, string.char(a))
-        if v3 then table.insert(r, string.char(b)) end
-        if v4 then table.insert(r, string.char(c)) end
-    end
-    return table.concat(r)
-end
-`;
+<script>
+/* ---------- Utilities ---------- */
 
-        const xorDecodeFn = `
-local function xorDecode(str, key)
-    local result = {}
-    for i = 1, #str do
-        local char = string.byte(str, i)
-        table.insert(result, string.char(bit32.bxor(char, key)))
-    end
-    return table.concat(result)
-end
-`;
+// safe base64 decode for both browser and fallback
+function safeBase64Decode(s) {
+    try {
+        // try browser atob
+        return decodeURIComponent(escape(window.atob(s)));
+    } catch(e) {
+        // fallback: try decoding assuming input is already ascii
+        try { return window.atob(s); } catch(e2) { return null; }
+    }
+}
 
-        const antiTamperFn = `
-local function checkTamper()
-    -- Dummy check that always passes for testing; replace with real logic
-    if false then
-        error("Script tampered!")
-    end
-end
-checkTamper()
-`;
+// heuristic: is string likely base64? (charset test + length)
+function looksLikeBase64(s) {
+    if (typeof s !== 'string') return false;
+    s = s.replace(/\\s+/g, '');
+    if (s.length % 4 !== 0) return false;
+    return /^[A-Za-z0-9+/=]+$/.test(s);
+}
 
-        const protection247Fn = `
-spawn(function()
-    while true do
-        wait(10) -- Increased wait time to reduce performance impact
-    end
-end)
-`;
+// printable ascii test
+function isPrintableAscii(s) {
+    if (typeof s !== 'string') return false;
+    for (let i=0;i<s.length;i++){
+        const c = s.charCodeAt(i);
+        if ((c < 9) || (c > 126)) return false;
+    }
+    return true;
+}
 
-        function removeComments(code) {
-            return code
-                .replace(/--\[\[[\s\S]*?\]\]/g, '')
-                .replace(/--[^\n]*/g, '');
+// try to detect Lua-like content
+function looksLikeLua(s) {
+    if (!s) return false;
+    const keywords = ['local','function','end','print','game','Players','workspace','require','for','while','if','then','do'];
+    const lower = s.toLowerCase();
+    let score = 0;
+    for (const k of keywords) if (lower.indexOf(k) !== -1) score++;
+    return score >= 1; // lenient
+}
+
+/* ---------- Decoders ---------- */
+
+// Replace patterns like b64decode("...") or b64decode('...') with decoded string literal (if valid)
+function replaceB64Calls(code) {
+    let changed = false;
+    // match b64decode( "...." ) or b64decode('...')
+    code = code.replace(/b64decode\s*\(\s*("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')\s*\)/g, function(m, p1) {
+        const quote = p1[0];
+        let inner = p1.slice(1, -1);
+        // unescape common escapes
+        inner = inner.replace(/\\n/g, '\\n').replace(/\\r/g, '\\r');
+        // try base64 detection
+        if (!looksLikeBase64(inner)) return m;
+        const decoded = safeBase64Decode(inner);
+        if (!decoded || !isPrintableAscii(decoded)) return m;
+        // escape quotes for Lua string literal
+        const out = quote + decoded.replace(new RegExp(quote,'g'), '\\' + quote) + quote;
+        changed = true;
+        return out;
+    });
+    return {code, changed};
+}
+
+// Replace xorDecode("...", key) calls when key is numeric literal
+function replaceXorCalls(code) {
+    let changed = false;
+    code = code.replace(/xorDecode\s*\(\s*("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')\s*,\s*(\d{1,3})\s*\)/g, function(m, p1, p2, p3, keyStr) {
+        const quote = p1[0];
+        let inner = p1.slice(1, -1);
+        const key = parseInt(keyStr,10);
+        // decode by xor with key
+        let out = '';
+        for (let i=0;i<inner.length;i++){
+            out += String.fromCharCode(inner.charCodeAt(i) ^ key);
         }
+        if (!isPrintableAscii(out)) return m;
+        // if decoded looks like base64, keep as decoded (but we will let replaceB64 catch it in next iteration)
+        changed = true;
+        return quote + out.replace(new RegExp(quote,'g'), '\\' + quote) + quote;
+    });
+    return {code, changed};
+}
 
-        function obfuscate(type) {
-            let code = document.getElementById('inputCode').value || defaultCode;
-            let output = '';
-            const antiTamper = document.getElementById('antiTamper').checked;
-            const maxProtection = document.getElementById('maxProtection').checked;
-            const protection247 = document.getElementById('24Protection').checked;
-            const over5kb = document.getElementById('over5kb').checked;
+// Attempt nested patterns like b64decode(xorDecode("...",42)) or b64decode(b64decode(...)) etc.
+function replaceNestedPatterns(code) {
+    let anyChange = false;
+    // First, attempt to evaluate patterns sequentially by attempting inner decode attempts
+    // A simple approach: find string literals and test if they are base64 or XOR-like encoded; we brute-force small common keys if tryBrute option is enabled elsewhere.
+    // Here, attempt small common keys for xor if literal looks suspicious.
+    const quotedStringRegex = /("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')/g;
+    // No-op: we handle nested structure by repeated runs of the other replace functions.
+    return {code, changed: anyChange};
+}
 
-            let temp = code;
-            let outputType = '';
+/* ---------- XOR brute force on literal tokens ---------- */
 
-            if (type === 'base64') {
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    return `b64decode("${btoa(str)}")`;
-                });
-                output += base64DecodeFn;
-                outputType = 'Base64 Strings';
+function bruteForceXorOnLiterals(code, maxKey=255) {
+    let changed = false;
+    // find string literals
+    code = code.replace(/("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')/g, function(token) {
+        const quote = token[0];
+        let inner = token.slice(1,-1);
+        // skip if already looks like Lua source
+        if (looksLikeLua(inner)) return token;
+        // try keys 1..maxKey but keep the first that looks like Lua or printable and contains 'local' or 'function' or 'print'
+        for (let key=1; key<=maxKey; key++) {
+            let out = '';
+            for (let i=0;i<inner.length;i++) out += String.fromCharCode(inner.charCodeAt(i) ^ key);
+            if (!isPrintableAscii(out)) continue;
+            if (looksLikeLua(out) || out.indexOf('local')!==-1 || out.indexOf('function')!==-1 || out.indexOf('print')!==-1 || out.indexOf('game')!==-1) {
+                changed = true;
+                return quote + out.replace(new RegExp(quote,'g'), '\\' + quote) + quote;
             }
-
-            if (type === 'xor') {
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    let encrypted = '';
-                    for (let i = 0; i < str.length; i++) {
-                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ 42);
-                    }
-                    return `xorDecode("${encrypted.replace(/"/g, '\\"')}", 42)`;
-                });
-                output += xorDecodeFn;
-                outputType = 'XOR Strings';
-            }
-
-            if (type === 'rename') {
-                temp = temp
-                    .replace(/\blocal\s+(\w+)/g, (match, varName) => {
-                        return `local ${randomString(20)}`;
-                    })
-                    .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
-                        return `function ${randomString(20)}`;
-                    })
-                    .replace(/\b(\w+)\b/g, (match, varName) => {
-                        if (['local', 'function', 'end', 'if', 'then', 'else', 'for', 'do', 'print', 'game', 'Players', 'LocalPlayer', 'Name'].includes(varName)) return varName;
-                        return randomString(20);
-                    });
-                outputType = 'Variable Renaming';
-            }
-
-            if (type === 'control') {
-                const junkCode = `
-if ${randomString(10)} == math.random(1, 100) then
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-else
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-end
-`;
-                const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode) + '\n' + junkCode;
-                outputType = 'Control Flow';
-            }
-
-            if (type === 'max') {
-                // Apply all obfuscations sequentially
-                // 1. Variable Renaming (enhanced)
-                temp = temp
-                    .replace(/\blocal\s+(\w+)/g, (match, varName) => {
-                        return `local ${randomString(20)}`;
-                    })
-                    .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
-                        return `function ${randomString(20)}`;
-                    })
-                    .replace(/\b(\w+)\b/g, (match, varName) => {
-                        if (['local', 'function', 'end', 'if', 'then', 'else', 'for', 'do', 'print', 'game', 'Players', 'LocalPlayer', 'Name'].includes(varName)) return varName;
-                        return randomString(20);
-                    });
-
-                // 2. Control Flow (enhanced with more junk)
-                const junkCode = `
-if ${randomString(10)} == math.random(1, 100) then
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-else
-    local ${randomString(12)} = math.cos(math.random())
-    local ${randomString(12)} = math.sin(math.random())
-    local ${randomString(12)} = math.tan(math.random())
-end
-`;
-                const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode + junkCode) + '\n' + junkCode;
-
-                // 3. String obfuscation: Base64 and XOR mixed
-                let stringCount = 0;
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    stringCount++;
-                    let encoded = btoa(str);
-                    let encrypted = '';
-                    for (let i = 0; i < encoded.length; i++) {
-                        encrypted += String.fromCharCode(encoded.charCodeAt(i) ^ 42);
-                    }
-                    return `b64decode(xorDecode("${encrypted.replace(/"/g, '\\"')}", 42))`;
-                });
-
-                output += base64DecodeFn + xorDecodeFn;
-                outputType = 'Obfuscate Using Everything';
-            }
-
-            if (antiTamper) {
-                temp = antiTamperFn + temp;
-            }
-
-            if (protection247) {
-                temp = protection247Fn + temp;
-            }
-
-            if (maxProtection) {
-                temp = temp.replace(/b64decode\((xorDecode\("([^"]*)"\, 42\))\)/g, (match, inner, encoded) => {
-                    let doubleInner = btoa(atob(encoded));
-                    return `b64decode(b64decode(xorDecode("${doubleInner}", 42)))`;
-                });
-            }
-
-            if (over5kb) {
-                let junk = '';
-                const junkBlock = () => `local ${randomString(10)} = b64decode("${btoa(randomString(50))}")\n`;
-                for (let i = 0; i < 100; i++) {
-                    junk += junkBlock();
-                }
-                temp = junk + temp + junk;
-            }
-
-            output += temp;
-
-            output = removeComments(output);
-
-            document.getElementById('output-type').textContent = `Obfuscation Type: ${outputType}`;
-            document.getElementById('output').textContent = output || 'Error: No output generated';
-        }
-
-        function copyCode() {
-            const output = document.getElementById('output').textContent;
-            if (output && output !== 'Obfuscated code will appear here...') {
-                navigator.clipboard.writeText(output).then(() => {
-                    alert('Code copied to clipboard!');
-                }).catch(err => {
-                    alert('Failed to copy: ' + err);
-                });
-            } else {
-                alert('No code to copy!');
+            // also accept if it's valid base64 -> will be handled next
+            if (looksLikeBase64(out)) {
+                changed = true;
+                return quote + out.replace(new RegExp(quote,'g'), '\\' + quote) + quote;
             }
         }
+        return token;
+    });
+    return {code, changed};
+}
 
-        function randomString(length) {
-            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-            let result = '_';
-            for (let i = 0; i < length - 1; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
+/* ---------- Junk removal heuristics ---------- */
+
+function stripJunkBlocks(code) {
+    let changed = false;
+    // remove blocks that look like junk: repeated locals with random names and math.* calls
+    // Pattern: local _abcXYZ = math.sin(math.random()) or local _abc = b64decode("...") repeated many times
+    const junkPattern = /(?:\n|\r|\r\n)\s*local\s+_[A-Za-z0-9]{6,}\s*=\s*(?:math\.[a-zA-Z]+\([^)]*\)|b64decode\s*\([^)]*\)|xorDecode\s*\([^)]*\)|[A-Za-z0-9_]+\([^)]*\))\s*(?:\n|\r|\r\n)/g;
+    const before = code;
+    code = code.replace(junkPattern, '\n');
+    if (code !== before) changed = true;
+
+    // remove if-blocks where the condition is random name equals math.random(1,100)
+    code = code.replace(/if\s+_[A-Za-z0-9]{6,}\s*==\s*math\.random\([^\)]*\)\s*then[\s\S]*?end/g, function(m) {
+        changed = true;
+        return '';
+    });
+
+    // remove very long sequences of local random variable assignments (heuristic)
+    code = code.replace(/(?:local\s+_[A-Za-z0-9]{6,}\s*=[^\n]+\n){6,}/g, function(m) { changed=true; return ''; });
+
+    return {code, changed};
+}
+
+/* ---------- Beautify (simple) ---------- */
+
+function simpleBeautify(code) {
+    // add line breaks around keywords and indent basic blocks. This is lightweight.
+    // ensure newlines after ; and between tokens
+    let out = code;
+    // normalize line endings
+    out = out.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    // put keywords on their own lines when appropriate
+    out = out.replace(/\bthen\b/g,'then\n');
+    out = out.replace(/\bdo\b/g,'do\n');
+    out = out.replace(/\bend\b/g,'\nend\n');
+    out = out.replace(/\bfunction\b/g,'\nfunction');
+    out = out.replace(/\blocal\b/g,'\nlocal');
+    // remove excessive blank lines
+    out = out.replace(/\n{3,}/g,'\n\n');
+    // tidy spacing
+    out = out.replace(/[ \t]+$/gm,'');
+    return out.trim();
+}
+
+/* ---------- Main deobfuscation orchestration ---------- */
+
+function autoDeobfuscate() {
+    const orig = document.getElementById('inputCode').value || '';
+    if (!orig) { alert('Paste code first'); return; }
+    document.getElementById('output-type').textContent = 'Status: Running auto deobfuscation...';
+    let code = orig;
+    const autoStrip = document.getElementById('autoStripJunk').checked;
+    const bruteXor = document.getElementById('tryBruteXor').checked;
+    const beautifyOnFinish = document.getElementById('beautifyOnFinish').checked;
+
+    let iterations = 0;
+    let anyChangeOverall = false;
+    const maxIterations = 12;
+
+    while (iterations < maxIterations) {
+        iterations++;
+        let changedThisRound = false;
+
+        // 1) Replace known function call wrappers (b64decode, xorDecode)
+        const r1 = replaceB64Calls(code);
+        code = r1.code; if (r1.changed) changedThisRound = true;
+
+        const r2 = replaceXorCalls(code);
+        code = r2.code; if (r2.changed) changedThisRound = true;
+
+        // 2) brute force xor on literals if allowed
+        if (bruteXor) {
+            const r3 = bruteForceXorOnLiterals(code, 255);
+            code = r3.code; if (r3.changed) changedThisRound = true;
         }
 
-        function btoa(str) {
-            try {
-                return btoa(unescape(encodeURIComponent(str)));
-            } catch (e) {
-                console.error('Base64 encoding failed:', e);
-                return str;
-            }
+        // 3) strip junk blocks heuristically
+        if (autoStrip) {
+            const r4 = stripJunkBlocks(code);
+            code = r4.code; if (r4.changed) changedThisRound = true;
         }
 
-        function atob(str) {
-            try {
-                return decodeURIComponent(escape(window.atob(str)));
-            } catch (e) {
-                console.error('Base64 decoding failed:', e);
-                return str;
-            }
-        }
-    </script>
+        // 4) attempt nested replacements again by repeating the simple passes
+        // replace b64 again (in case xor produced base64), then xor again
+        const r5 = replaceB64Calls(code);
+        code = r5.code; if (r5.changed) changedThisRound = true;
+        const r6 = replaceXorCalls(code);
+        code = r6.code; if (r6.changed) changedThisRound = true;
+
+        if (!changedThisRound) break;
+        anyChangeOverall = anyChangeOverall || changedThisRound;
+    }
+
+    if (beautifyOnFinish) code = simpleBeautify(code);
+
+    document.getElementById('output-type').textContent = 'Status: Finished — iterations: ' + iterations + (anyChangeOverall ? ' (changes made)' : ' (no changes detected)');
+    document.getElementById('output').textContent = code || '-- no output --';
+}
+
+/* ---------- Helper buttons ---------- */
+
+function tryXorBruteforce() {
+    let code = document.getElementById('inputCode').value || '';
+    if (!code) { alert('Paste code first'); return; }
+    document.getElementById('output-type').textContent = 'Status: Trying XOR brute-force on string literals...';
+    const r = bruteForceXorOnLiterals(code, 255);
+    let out = r.code;
+    out = simpleBeautify(out);
+    document.getElementById('output').textContent = out;
+    document.getElementById('output-type').textContent = 'Status: XOR brute finished' + (r.changed ? ' (some literals decoded)' : ' (no change)');
+}
+
+function stripJunkBlocks() {
+    let code = document.getElementById('inputCode').value || '';
+    if (!code) { alert('Paste code first'); return; }
+    const r = stripJunkBlocks(code);
+    const out = simpleBeautify(r.code);
+    document.getElementById('output').textContent = out;
+    document.getElementById('output-type').textContent = 'Status: Stripped junk blocks' + (r.changed ? ' (removed suspicious junk)' : ' (no change)');
+}
+
+function beautifyOutput() {
+    let code = document.getElementById('output').textContent || document.getElementById('inputCode').value || '';
+    if (!code) { alert('Nothing to beautify'); return; }
+    const out = simpleBeautify(code);
+    document.getElementById('output').textContent = out;
+    document.getElementById('output-type').textContent = 'Status: Beautified';
+}
+
+function copyCode() {
+    const out = document.getElementById('output').textContent || '';
+    if (!out) { alert('Nothing to copy'); return; }
+    navigator.clipboard.writeText(out).then(()=>alert('Copied!'), (e)=>alert('Copy failed: '+e));
+}
+
+/* ---------- Prevent accidental use of browser built-ins naming collisions ---------- */
+/* (no-op - keeps existing btoa/atob named functions untouched in this page) */
+
+</script>
 </body>
 </html>
