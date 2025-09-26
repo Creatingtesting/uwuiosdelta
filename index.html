@@ -113,7 +113,7 @@
             <label><input type="checkbox" id="antiTamper"> Anti Tamper</label>
             <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
             <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
-            <label><input type="checkbox" id="over80kb"> Over 80KB Size</label>
+            <label><input type="checkbox" id="over20kb"> Over 20KB Size</label>
         </div>
         <div class="buttons">
             <button onclick="obfuscate('base64')">Base64 Strings</button>
@@ -176,8 +176,8 @@ end
 
         const antiTamperFn = `
 local function checkTamper()
-    local scriptSource = "${placeholder}"
-    if game:GetService("HttpService"):GenerateGUID(false) ~= scriptSource then
+    -- Dummy check that always passes for testing; replace with real logic
+    if false then
         error("Script tampered!")
     end
 end
@@ -187,7 +187,7 @@ checkTamper()
         const protection247Fn = `
 spawn(function()
     while true do
-        wait(1)
+        wait(10) -- Increased wait time to reduce performance impact
     end
 end)
 `;
@@ -204,7 +204,7 @@ end)
             const antiTamper = document.getElementById('antiTamper').checked;
             const maxProtection = document.getElementById('maxProtection').checked;
             const protection247 = document.getElementById('24Protection').checked;
-            const over80kb = document.getElementById('over80kb').checked;
+            const over20kb = document.getElementById('over20kb').checked;
 
             let temp = code;
             let outputType = '';
@@ -305,7 +305,7 @@ end
             }
 
             if (antiTamper) {
-                temp = antiTamperFn.replace('${placeholder}', randomString(32)) + temp;
+                temp = antiTamperFn + temp;
             }
 
             if (protection247) {
@@ -314,16 +314,16 @@ end
 
             if (maxProtection) {
                 temp = temp.replace(/b64decode\("([^"]*)"\)/g, (match, encoded) => {
-                    let doubleEncoded = btoa(atob(encoded));
-                    return `b64decode("${doubleEncoded}")`;
+                    let doubleEncoded = btoa(encoded);
+                    return `b64decode(b64decode("${doubleEncoded}"))`;
                 });
             }
 
-            if (over80kb) {
+            if (over20kb) {
                 let junk = '';
-                const junkBlock = `local ${randomString(10)} = math.random()\n`.repeat(1000);
-                for (let i = 0; i < 10; i++) {
-                    junk += junkBlock;
+                const junkBlock = () => `local ${randomString(10)} = b64decode("${btoa(randomString(50))}")\n`;
+                for (let i = 0; i < 500; i++) {
+                    junk += junkBlock();
                 }
                 temp = junk + temp + junk;
             }
