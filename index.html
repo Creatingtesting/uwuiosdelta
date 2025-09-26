@@ -1,71 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Web Search</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    #chatbox { max-width: 600px; margin: auto; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
-    #messages { height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
-    .msg { margin: 5px 0; }
-    .user { color: blue; }
-    .ai { color: green; }
-    #inputArea { display: flex; }
-    #userInput { flex: 1; padding: 8px; }
-    button { padding: 8px; margin-left: 5px; }
-    .search-result { margin: 8px 0; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-    .search-result a { font-weight: bold; text-decoration: none; color: #333; }
-    .search-result p { margin: 4px 0; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luau Code Obfuscator</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            width: 600px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #2e2e4e;
+            border: 1px solid #00ffff;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            resize: none;
+        }
+        .buttons {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+        }
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border: none;
+            border-radius: 5px;
+            color: #ffffff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        #output {
+            background: #1e1e2f;
+            border: 1px solid #ff00ff;
+            border-radius: 10px;
+            padding: 10px;
+            min-height: 200px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .glow {
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px #00ffff;
+            }
+            to {
+                box-shadow: 0 0 20px #ff00ff;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div id="chatbox">
-    <div id="messages"></div>
-    <div id="inputArea">
-      <input type="text" id="userInput" placeholder="Ask me anything..." />
-      <button onclick="handleUser()">Send</button>
+    <div class="container">
+        <h1 class="glow">Luau Code Obfuscator</h1>
+        <textarea id="inputCode" placeholder="Enter your Luau code here..."></textarea>
+        <div class="buttons">
+            <button onclick="obfuscate('rename')">Variable Renaming</button>
+            <button onclick="obfuscate('control')">Control Flow</button>
+            <button onclick="obfuscate('string')">String Encryption</button>
+        </div>
+        <h2>Obfuscated Code</h2>
+        <div id="output"></div>
     </div>
-  </div>
 
-  <script>
-    async function handleUser() {
-      const inputEl = document.getElementById("userInput");
-      const text = inputEl.value.trim();
-      if (!text) return;
-      appendMessage("You", text, "user");
-      inputEl.value = "";
+    <script>
+        // Sample Luau code if none provided
+        const defaultCode = `local player = game.Players.LocalPlayer
+local function greet(name)
+    print("Hello, " .. name .. "!")
+end
+greet(player.Name)
+for i = 1, 5 do
+    print("Count: " .. i)
+end`;
 
-      // Call backend
-      let response = await fetch("/search?q=" + encodeURIComponent(text));
-      let data = await response.json();
+        // Obfuscation functions
+        function obfuscate(type) {
+            let code = document.getElementById('inputCode').value || defaultCode;
+            let output = '';
 
-      appendMessage("System", "Here are web search results:", "ai");
-      showSearchResults(data.results);
+            if (type === 'rename') {
+                // Variable Renaming Obfuscation
+                output = code
+                    .replace(/\blocal\s+(\w+)/g, (match, varName) => {
+                        return `local ${randomString(10)}`;
+                    })
+                    .replace(/\b(greet|player|name|i)\b/g, (match) => {
+                        return randomString(10);
+                    });
+            } else if (type === 'control') {
+                // Control Flow Obfuscation
+                const fakeLoop = `if true then\n    local ${randomString(8)} = math.random(1, 100)\nelse\n    local ${randomString(8)} = math.random(1, 100)\nend\n`;
+                const lines = code.split('\n');
+                output = fakeLoop + lines.join('\n' + fakeLoop);
+            } else if (type === 'string') {
+                // String Encryption (Simple XOR-based)
+                output = code.replace(/"([^"]*)"/g, (match, str) => {
+                    let encrypted = '';
+                    for (let i = 0; i < str.length; i++) {
+                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ 42); // XOR with key 42
+                    }
+                    return `tostring(string.char(${encrypted.split('').map(c => c.charCodeAt(0) ^ 42).join(', ')}))`;
+                });
+            }
 
-      if (data.answer) {
-        appendMessage("AI", data.answer, "ai");
-      }
-    }
+            document.getElementById('output').textContent = output;
+        }
 
-    function appendMessage(who, text, cls) {
-      const msgBox = document.getElementById("messages");
-      msgBox.innerHTML += `<div class="msg ${cls}"><b>${who}:</b> ${text}</div>`;
-      msgBox.scrollTop = msgBox.scrollHeight;
-    }
-
-    function showSearchResults(results) {
-      const msgBox = document.getElementById("messages");
-      for (let r of results) {
-        msgBox.innerHTML += `
-          <div class="search-result">
-            <a href="${r.url}" target="_blank">${r.name}</a>
-            <p>${r.snippet}</p>
-          </div>
-        `;
-      }
-      msgBox.scrollTop = msgBox.scrollHeight;
-    }
-  </script>
+        // Generate random string for variable names
+        function randomString(length) {
+            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+    </script>
 </body>
 </html>
