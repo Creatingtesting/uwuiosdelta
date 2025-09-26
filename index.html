@@ -1,427 +1,312 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>LuaU Deobfuscater (Light)</title>
+<title>Lua/General Deobfuscator</title>
 <style>
-:root{--bg:#071022;--panel:#0b1530;--accent:#00e6ff}
-body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,monospace;background:linear-gradient(135deg,var(--bg),#07162a);color:#dff;display:flex;align-items:center;justify-content:center;height:100vh;padding:14px}
-.container{width:100%;max-width:1000px;background:linear-gradient(180deg,var(--panel),#061224);border-radius:12px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-h1{margin:0;font-size:1.1rem;color:var(--accent)}
-.row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
-.col{flex:1;min-width:300px}
-textarea{width:100%;height:260px;background:#061026;color:#cfe;padding:12px;border-radius:8px;border:1px solid rgba(0,230,255,0.06);font-family:monospace;resize:vertical}
-.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-button{background:linear-gradient(90deg,var(--accent),#b14cff);border:0;padding:8px 12px;border-radius:8px;color:#001;font-weight:700;cursor:pointer}
-label{font-size:.9rem;color:#cfe}
-#output{background:#041021;color:#dff;padding:12px;border-radius:8px;border:1px solid rgba(177,76,255,0.06);height:300px;overflow:auto;font-family:monospace;white-space:pre-wrap}
-.status{font-size:.9rem;color:#9ff;margin-top:8px}
-.spacer{flex:1}
-small.note{color:#9bd;font-size:.85rem}
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 18px; }
+  textarea { width: 48%; height: 420px; font-family: monospace; font-size: 13px; }
+  .col { display:inline-block; vertical-align:top; }
+  .controls { margin: 8px 0 18px; }
+  button { margin-right:6px; }
+  label { display:inline-block; margin-right:10px; }
+  input[type="text"] { width:200px; }
+  .note { color:#666; font-size:13px; margin-top:8px; }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>LuaU Deobfuscater (Light)</h1>
-    <small class="note">Now decodes escaped numeric ASCII sequences like \117\115\101... — runs entirely in your browser.</small>
-  </header>
+<h2>Lua / ASCII / Base64 / XOR Deobfuscator</h2>
 
-  <div style="display:flex;gap:12px;">
-    <div class="col">
-      <label>Obfuscated input</label>
-      <textarea id="inputCode" placeholder="Paste obfuscated Luau code here..."></textarea>
-      <div class="controls">
-        <button id="deepBtn">Deep Deobfuscate</button>
-        <button id="fullBtn">Full Deep Clean</button>
-        <button id="quickBtn">Quick Pass</button>
-        <button id="stripBtn">Strip Junk</button>
-        <button id="copyBtn">Copy Output</button>
-        <div class="spacer"></div>
-        <label><input type="checkbox" id="beautify" checked/> Beautify</label>
-        <label><input type="checkbox" id="xorBrute" checked/> XOR brute</label>
-        <label><input type="checkbox" id="extractLoad" checked/> Extract loadstring</label>
-      </div>
-    </div>
+<div class="controls">
+  <button id="stripComments">Remove Comments</button>
+  <button id="unescapeAscii">Unescape ASCII (\\123, \\x7b, \\u{...})</button>
+  <button id="decodeBase64">Decode Base64</button>
+  <label>XOR key: <input id="xorKey" type="text" placeholder="leave empty to brute-force 1-byte"/></label>
+  <button id="xorDecode">XOR Decode</button>
+  <button id="resolveVars">Resolve char variables & concatenation</button>
+  <button id="expandLoadstring">Expand loadstring("...")</button>
+  <button id="all">Run All</button>
+  <button id="reset">Reset Output ← Input</button>
+</div>
 
-    <div class="col">
-      <label>Deobfuscated output</label>
-      <div id="output">Output will appear here...</div>
-      <div class="status" id="status">Idle</div>
-    </div>
+<div>
+  <div class="col">
+    <h3>Input</h3>
+    <textarea id="input" spellcheck="false" placeholder="Paste obfuscated code here"></textarea>
   </div>
+  <div class="col" style="margin-left:18px">
+    <h3>Output</h3>
+    <textarea id="output" spellcheck="false" placeholder="Deobfuscated output will appear here"></textarea>
+  </div>
+</div>
+
+<div class="note">
+  Notes: The tool uses heuristics. For XOR brute force it tries single-byte keys and shows outputs that look mostly printable. If you want a multi-byte key brute force, paste the key or request it. Use only on code you own or are permitted to analyze.
 </div>
 
 <script>
 (function(){
+  const inputEl = document.getElementById('input');
+  const outputEl = document.getElementById('output');
 
-function setStatus(t){document.getElementById('status').textContent=t}
-function setOutput(t){const o=document.getElementById('output'); o.textContent=t; o.scrollTop=o.scrollHeight}
-function safeAtob(s){ try { return decodeURIComponent(escape(window.atob(s))) } catch(e) { try { return window.atob(s) } catch(e2) { return null } } }
-function isAscii(s){ if(typeof s!=='string') return false; for(let i=0;i<s.length;i++){const c=s.charCodeAt(i); if(c===0||c>127) return false } return true }
-function unquote(tok){ if(tok.length>=2 && (tok[0]==='"' || tok[0]==="'") && tok[tok.length-1]===tok[0]) return tok.slice(1,-1).replace(/\\n/g,'\n').replace(/\\r/g,'\r').replace(/\\"/g,'"').replace(/\\'/g,"'"); return tok }
-function quoteLua(s,q='"'){ return q + s.replace(new RegExp(q,'g'),'\\'+q) + q }
-function looksLikeBase64(s){ if(typeof s!=='string') return false; const t=s.replace(/\s+/g,''); return t.length>=4 && t.length%4===0 && /^[A-Za-z0-9+/=]+$/.test(t) }
-function hexToText(h){ try{ h=h.replace(/[^0-9a-fA-F]/g,''); if(h.length%2!==0) return null; let out=''; for(let i=0;i<h.length;i+=2) out+=String.fromCharCode(parseInt(h.substr(i,2),16)); return out }catch(e){return null} }
-function tryUrlDecode(s){ try{ return decodeURIComponent(s) }catch(e){ return null } }
-function rot13(s){ return s.replace(/[A-Za-z]/g,function(c){ const b = c<='Z'?65:97; return String.fromCharCode((c.charCodeAt(0)-b+13)%26 + b) }) }
+  function setOutput(text){ outputEl.value = text; }
+  function getText(){ return outputEl.value || inputEl.value; }
 
-// tokenization that preserves strings and comments
-function tokenizePreserve(code){
-  const tokens = []
-  const regex = /--\[\[[\s\S]*?\]\]|--[^\n]*|("([^"\\]|\\.)*"|'([^'\\]|\\.)*')|[A-Za-z_][A-Za-z0-9_]*|./g
-  let m
-  while((m = regex.exec(code)) !== null){
-    if(m[0].startsWith('--[[')) tokens.push({type:'comment', text:m[0]})
-    else if(m[0].startsWith('--')) tokens.push({type:'comment', text:m[0]})
-    else if(m[1]) tokens.push({type:'string', text:m[1]})
-    else if(/^[A-Za-z_][A-Za-z0-9_]*$/.test(m[0])) tokens.push({type:'ident', text:m[0]})
-    else tokens.push({type:'other', text:m[0]})
+  // Remove Lua comments: -- single-line and --[[ ... ]]
+  function stripComments(str){
+    // Remove block comments --[[ ... ]]
+    str = str.replace(/--\[\[[\s\S]*?\]\]/g, '');
+    // Remove single-line comments -- ... (but preserve shebangs maybe)
+    str = str.replace(/(^|[^:"'\\])--[^\r\n]*/g, function(m, p1){
+      return p1;
+    });
+    return str;
   }
-  return tokens
-}
-function tokensToString(tokens){ return tokens.map(t=>t.text).join('') }
 
-// decode sequences like \117 into characters
-function decodeEscapedNumbersInString(s){
-  return s.replace(/\\([0-9]{1,3})/g, function(_, num){
-    const n = parseInt(num, 10)
-    if(isNaN(n) || n < 0 || n > 255) return '\\' + num
-    return String.fromCharCode(n)
-  })
-}
+  // Unescape \ddd, \xhh, \u{hhhh}
+  function unescapeAscii(str){
+    // handle decimal escapes like \117
+    str = str.replace(/\\([0-9]{1,3})/g, function(_, d){
+      try { return String.fromCharCode(parseInt(d,10)); } catch(e) { return _; }
+    });
+    // hex escapes \xhh
+    str = str.replace(/\\x([0-9A-Fa-f]{1,2})/g, function(_, h){
+      return String.fromCharCode(parseInt(h,16));
+    });
+    // unicode \u{h...}
+    str = str.replace(/\\u\{([0-9A-Fa-f]+)\}/g, function(_, h){
+      return String.fromCodePoint(parseInt(h,16));
+    });
+    // common escaped quotes/backslashes
+    str = str.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t').replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    return str;
+  }
 
-// decode escaped sequences inside tokens: strings and other tokens (safe)
-function decodeEscapedNumbersTokens(code){
-  const tokens = tokenizePreserve(code)
-  for(let t of tokens){
-    if(t.type === 'string'){
-      const q = t.text[0]
-      const inner = unquote(t.text)
-      const dec = decodeEscapedNumbersInString(inner)
-      if(dec !== inner && isAscii(dec)) t.text = q + dec + q
-    } else if(t.type === 'other'){
-      // if there's a long run of \ddd sequences (more than 3 of them), decode them
-      if(/(?:\\\d{1,3}){3,}/.test(t.text)){
-        const dec = decodeEscapedNumbersInString(t.text)
-        if(dec !== t.text && isAscii(dec)) t.text = dec
+  // Detect base64-like tokens and decode them
+  function decodeBase64Heuristic(str){
+    // Replace patterns like "SGVsbG8=" or 'SGVsbG8=' or [[SGV..]]
+    // We'll try to decode all base64-like substrings of length >= 8 and valid base64 chars
+    const b64Regex = /(['"])([A-Za-z0-9+\/=]{8,})\1/g;
+    return str.replace(b64Regex, function(_, quote, token){
+      try {
+        // check valid padding
+        if(token.length % 4 !== 0) return _; 
+        // decode using atob (browser)
+        const decoded = atob(token);
+        // If decoded has many non-printable characters, skip
+        const printableRatio = decoded.split('').filter(c => {
+          const code = c.charCodeAt(0);
+          return (code >= 32 && code <= 126) || code===10 || code===13 || code===9;
+        }).length / Math.max(1, decoded.length);
+        if(printableRatio < 0.6) return _;
+        // return quoted decoded content
+        return quote + decoded + quote;
+      } catch(e){
+        return _;
+      }
+    });
+  }
+
+  // Replace "local v1 = 'p'" or local v1 = "\112" or local v1 = 112 or local v1 = 'a' or local v1 = "a"
+  // Build mapping and replace concatenations like v1..v2..v3 or v1..'x' etc
+  function resolveCharVariables(str){
+    // 1) extract assignments
+    const lines = str.split('\n');
+    const mapping = {}; // varname -> string
+    const assignRe = /^\s*(?:local\s+)?([A-Za-z_]\w*)\s*=\s*(.+?)\s*$/;
+    for(let ln of lines){
+      let m = ln.match(assignRe);
+      if(!m) continue;
+      const name = m[1];
+      let rhs = m[2].trim();
+      // strip trailing semicolon or comment
+      rhs = rhs.replace(/;$/, '').replace(/--.*$/, '').trim();
+      // string literal
+      let s = null;
+      let q = rhs.match(/^(['"])([\s\S]*)\1$/);
+      if(q){
+        s = q[2];
+        s = unescapeAscii(s);
+        mapping[name] = s;
+        continue;
+      }
+      // numeric literal (ascii code)
+      let n = rhs.match(/^([0-9]+)$/);
+      if(n){
+        mapping[name] = String.fromCharCode(parseInt(n[1],10));
+        continue;
+      }
+      // decimal escape in quotes like '\112'
+      let decesc = rhs.match(/^['"]((?:\\\d{1,3})+)['"]$/);
+      if(decesc){
+        mapping[name] = unescapeAscii(decesc[1]);
+        continue;
+      }
+      // single identifier assigned to another var (chain)
+      let id = rhs.match(/^([A-Za-z_]\w*)$/);
+      if(id && mapping[id[1]] !== undefined){
+        mapping[name] = mapping[id[1]];
+        continue;
       }
     }
-  }
-  return tokensToString(tokens)
-}
 
-// decode string.char(65,66,67)
-function decodeStringCharCalls(code){
-  return code.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/gi, function(_, nums){
-    try{
-      const arr = nums.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n) && n>=0 && n<=255)
-      if(arr.length===0) return _
-      const s = arr.map(n=>String.fromCharCode(n)).join('')
-      if(!isAscii(s)) return _
-      return quoteLua(s,'"')
-    }catch(e){ return _ }
-  })
-}
-
-// collapse concatenated literals
-function collapseConcats(code){
-  let prev
-  do {
-    prev = code
-    code = code.replace(/(['"])([\s\S]*?)\1\s*\.\.\s*(['"])([\s\S]*?)\3/g, function(_, q1, a, q2, b){
-      try{
-        const merged = unquote(q1 + a + q1) + unquote(q2 + b + q2)
-        if(!isAscii(merged)) return _
-        return quoteLua(merged, '"')
-      }catch(e){ return _ }
-    })
-  } while(code !== prev)
-  return code
-}
-
-// heuristics to decode string literals (base64/hex/url/rot13 and decode escaped numbers first)
-function decodeLiteralsByHeuristics(code, opts){
-  const tokens = tokenizePreserve(code)
-  for(let t of tokens){
-    if(t.type !== 'string') continue
-    const q = t.text[0]
-    let inner = unquote(t.text)
-    inner = decodeEscapedNumbersInString(inner)
-    if(inner.length===0) continue
-    if(looksLikeBase64(inner)){
-      const dec = safeAtob(inner)
-      if(dec && isAscii(dec)){ t.text = q + dec + q; continue }
-    }
-    const hx = hexToText(inner)
-    if(hx && isAscii(hx)){ t.text = q + hx + q; continue }
-    const ud = tryUrlDecode(inner)
-    if(ud && isAscii(ud)){ t.text = q + ud + q; continue }
-    const r13 = rot13(inner)
-    if(r13 && isAscii(r13) && /local|function|print|game|Players/.test(r13)){ t.text = q + r13 + q; continue }
-    if(opts && opts.xorBrute){
-      for(let k=1;k<=64;k++){
-        let out = ''
-        for(let i=0;i<inner.length;i++) out += String.fromCharCode(inner.charCodeAt(i) ^ k)
-        if(isAscii(out) && /local|function|print|game|Players/.test(out)){
-          t.text = q + out + q
-          break
+    // 2) replace concatenations: pattern like v1..v2..'a'..v3 => "p"+"r"+"a"+...
+    // We'll replace occurrences of (\w+(?:\.\.\w+)+) and attempt to evaluate
+    function evalConcat(match){
+      // split by .., trim each part
+      const parts = match.split(/\.\./).map(s=>s.trim());
+      let out = '';
+      for(const p of parts){
+        // variable
+        if(/^([A-Za-z_]\w*)$/.test(p)){
+          if(mapping[p] !== undefined) out += mapping[p];
+          else return match; // can't resolve
+        } else {
+          // string literal
+          const q = p.match(/^(['"])([\s\S]*)\1$/);
+          if(q) out += unescapeAscii(q[2]);
+          else return match;
         }
       }
+      return JSON.stringify(out); // return quoted string
     }
-  }
-  return tokensToString(tokens)
-}
 
-// heavier XOR brute on literals if opted
-function bruteForceXorOnLiterals(code, maxKey){
-  maxKey = typeof maxKey === 'number' ? maxKey : 255
-  const tokens = tokenizePreserve(code)
-  for(let t of tokens){
-    if(t.type !== 'string') continue
-    const q = t.text[0], innerRaw = unquote(t.text)
-    const inner = decodeEscapedNumbersInString(innerRaw)
-    if(inner.length < 4) continue
-    for(let k=1;k<=maxKey;k++){
-      let out = ''
-      for(let i=0;i<inner.length;i++) out += String.fromCharCode(inner.charCodeAt(i) ^ k)
-      if(isAscii(out) && /local|function|print|game|Players|workspace/.test(out)){
-        t.text = q + out + q
-        break
+    // global replace: find concat groups of at least one '..'
+    str = str.replace(/([A-Za-z_]\w*(?:\s*\.\.\s*(?:[A-Za-z_]\w*|['"][\s\S]*?['"]))+)/g, function(m){
+      return evalConcat(m);
+    });
+
+    // last pass: replace single variable references with mapped char if safe (word boundaries)
+    for(const k in mapping){
+      const val = mapping[k];
+      // only replace if mapped value is short (likely a char)
+      if(val.length <= 8){
+        // replace whole-word occurrences
+        const re = new RegExp('\\b' + k + '\\b', 'g');
+        str = str.replace(re, JSON.stringify(val));
       }
     }
+    return str;
   }
-  return tokensToString(tokens)
-}
 
-// unwrap common wrapper calls
-function unwrapWrapperCalls(code){
-  code = code.replace(/b64decode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g, function(m, p1){
-    const inner0 = unquote(p1)
-    const inner = decodeEscapedNumbersInString(inner0)
-    if(!inner) return m
-    if(looksLikeBase64(inner)){
-      const dec = safeAtob(inner)
-      if(dec && isAscii(dec)) return quoteLua(dec, p1[0])
+  // XOR decode helper: supports numeric keys or string keys
+  function xorDecodeWithKey(dataStr, keyStr){
+    // dataStr: either raw bytes in JS string or something like "\123\12"
+    const data = Array.from(dataStr).map(c => c.charCodeAt(0));
+    const key = Array.from(keyStr).map(c => c.charCodeAt(0));
+    if(key.length === 0) return null;
+    const out = data.map((b,i) => String.fromCharCode(b ^ key[i % key.length])).join('');
+    return out;
+  }
+
+  // Heuristic XOR: find quoted strings that look like binary-ish and try XOR
+  function xorDecodeHeuristic(str, suppliedKey){
+    // find quoted strings
+    const qRegex = /(['"])([\s\S]{4,}?)\1/g;
+    let changed = str;
+    let any = false;
+    changed = changed.replace(qRegex, function(_, quote, token){
+      // attempt only if token has nonprintables or escaped pattern
+      // convert escaped sequences first
+      const raw = unescapeAscii(token);
+      if(suppliedKey !== null){
+        const dec = xorDecodeWithKey(raw, suppliedKey);
+        if(isMostlyPrintable(dec)){
+          any = true;
+          return quote + dec + quote;
+        } else {
+          return _; // no change
+        }
+      } else {
+        // brute-force single byte keys
+        for(let k=1;k<256;k++){
+          const key = String.fromCharCode(k);
+          const candidate = xorDecodeWithKey(raw, key);
+          if(isMostlyPrintable(candidate) && looksLikeCode(candidate)){
+            any = true;
+            return quote + candidate + quote;
+          }
+        }
+        return _;
+      }
+    });
+    return { out: changed, found: any };
+  }
+
+  function isMostlyPrintable(s){
+    if(!s || s.length===0) return false;
+    let printable = 0;
+    for(let i=0;i<s.length;i++){
+      const c = s.charCodeAt(i);
+      if((c >= 32 && c <= 126) || c===9 || c===10 || c===13) printable++;
     }
-    return m
-  })
-  code = code.replace(/xorDecode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*,\s*(\d{1,3})\s*\)/g, function(m, p1, p2, p3, keyStr){
-    const inner0 = unquote(p1)
-    const inner = decodeEscapedNumbersInString(inner0)
-    const key = parseInt(keyStr, 10)
-    if(!inner || isNaN(key)) return m
-    let out = ''
-    for(let i=0;i<inner.length;i++) out += String.fromCharCode(inner.charCodeAt(i) ^ key)
-    if(isAscii(out)) return quoteLua(out, p1[0])
-    return m
-  })
-  return code
-}
+    return printable / s.length > 0.8;
+  }
+  function looksLikeCode(s){
+    // crude heuristic: contains keywords or semicolons or 'function' or 'local' or 'print' or '('
+    return /function|local|print|loadstring|return|=|\(|\)|\{|\}|\;/.test(s);
+  }
 
-// extract loadstring safely
-function extractLoadstring(code){
-  return code.replace(/loadstring\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g, function(m, p1){
-    const inner0 = unquote(p1)
-    const inner = decodeEscapedNumbersInString(inner0)
-    if(!inner) return m
-    if(looksLikeBase64(inner)){
-      const dec = safeAtob(inner)
-      if(dec && isAscii(dec)) return dec
+  // Expand loadstring("...") by decoding quoted inner content
+  function expandLoadstring(str){
+    // find loadstring("...") or load("...") patterns
+    return str.replace(/(loadstring|load)\(\s*(['"])([\s\S]*?)\2\s*\)/g, function(_, fn, q, inner){
+      // unescape inner then return fn(deobf) representation
+      const decoded = unescapeAscii(inner);
+      return fn + '(' + JSON.stringify(decoded) + ')';
+    });
+  }
+
+  // Buttons
+  document.getElementById('stripComments').addEventListener('click', function(){
+    setOutput(stripComments(getText()));
+  });
+  document.getElementById('unescapeAscii').addEventListener('click', function(){
+    setOutput(unescapeAscii(getText()));
+  });
+  document.getElementById('decodeBase64').addEventListener('click', function(){
+    setOutput(decodeBase64Heuristic(getText()));
+  });
+  document.getElementById('resolveVars').addEventListener('click', function(){
+    setOutput(resolveCharVariables(getText()));
+  });
+  document.getElementById('expandLoadstring').addEventListener('click', function(){
+    setOutput(expandLoadstring(getText()));
+  });
+  document.getElementById('xorDecode').addEventListener('click', function(){
+    const key = document.getElementById('xorKey').value;
+    const suppliedKey = key === '' ? null : key;
+    const res = xorDecodeHeuristic(getText(), suppliedKey);
+    if(res.found) setOutput(res.out);
+    else {
+      alert('No plausible XOR decode found with given options. Try providing a key or allow brute-force (leave key empty).');
+      setOutput(getText());
     }
-    if(inner.indexOf('\\n') !== -1 && /local|function|end|print|game/.test(inner)) return inner
-    return m
-  })
-}
+  });
+  document.getElementById('all').addEventListener('click', function(){
+    let t = getText();
+    t = stripComments(t);
+    t = unescapeAscii(t);
+    t = decodeBase64Heuristic(t);
+    t = resolveCharVariables(t);
+    t = expandLoadstring(t);
+    // attempt XOR brute
+    const xorTry = xorDecodeHeuristic(t, null);
+    if(xorTry.found) t = xorTry.out;
+    setOutput(t);
+  });
+  document.getElementById('reset').addEventListener('click', function(){
+    setOutput(inputEl.value);
+  });
 
-// safe junk removal
-function removeJunk(code){
-  let out = code
-  out = out.replace(/if\s+_[A-Za-z0-9]{3,}\s*==\s*math\.random\s*\([^\)]*\)\s*then[\s\S]*?end/g, '')
-  out = out.replace(/local\s+_[A-Za-z0-9]{3,}\s*=[^\n]+\n/g, '')
-  out = out.replace(/function\s+_[A-Za-z0-9]{3,}\([^)]*\)\s*[\s\S]*?end/g, '')
-  out = out.replace(/;\s*$/gm,'')
-  return out
-}
+  // initialize output with input
+  inputEl.addEventListener('input', function(){
+    outputEl.value = inputEl.value;
+  });
 
-// conservative obfuscated name detector
-function isObfuscatedName(name){
-  if(!name) return false
-  if(/^_[A-Za-z0-9]{3,}$/.test(name)) return true
-  if(/^v[0-9A-Za-z]{2,}$/.test(name)) return true
-  if(name.length >= 10) return true
-  if(/[A-Z]{3,}/.test(name)) return true
-  const uniq = new Set(name.split('')).size
-  if(name.length >=5 && uniq / name.length > 0.75) return true
-  return false
-}
-
-// collect local declarations
-function collectLocalDeclarations(code){
-  const decls = []
-  const regex = /\blocal\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*([^;\n]+))?/g
-  let m
-  while((m = regex.exec(code)) !== null){
-    decls.push({name: m[1], value: m[2] ? m[2].trim() : null, index: m.index})
-  }
-  return decls
-}
-
-// name from value heuristics
-function nameFromValue(value, usedNames){
-  usedNames = usedNames || new Set()
-  if(!value) return null
-  const s = value.trim()
-  if(/^['"]/.test(s)){
-    let inner = unquote(s)
-    inner = decodeEscapedNumbersInString(inner)
-    inner = inner.replace(/[^A-Za-z0-9 ]+/g,' ').trim()
-    if(inner.length===0) return null
-    let base = inner.split(/\s+/).slice(0,3).join('')
-    base = base.replace(/^\d+/,'') || 'Text'
-    let candidate = base[0] ? base[0].toUpperCase() + base.slice(1) : 'Text'
-    let out = candidate, i=1
-    while(usedNames.has(out)){ out = candidate + i; i++ }
-    usedNames.add(out)
-    return out
-  }
-  if(/^\d+$/.test(s)){
-    let base = 'Count', i=1
-    while(usedNames.has(base + i)) i++
-    usedNames.add(base + i)
-    return base + i
-  }
-  if(/^function\b/.test(s) || s.indexOf('function')===0){
-    let base='Do', i=1
-    while(usedNames.has(base + i)) i++
-    usedNames.add(base + i)
-    return base + i
-  }
-  if(/\btrue\b|\bfalse\b/.test(s)){
-    let base='IsFlag', i=1
-    while(usedNames.has(base + i)) i++
-    usedNames.add(base + i)
-    return base + i
-  }
-  return null
-}
-
-// safe semantic rename for obfuscated locals
-function safeSemanticRename(code){
-  const decls = collectLocalDeclarations(code)
-  if(decls.length===0) return code
-  const tokens = tokenizePreserve(code)
-  const existing = new Set()
-  for(const t of tokens) if(t.type==='ident') existing.add(t.text)
-  const map = {}
-  const usedNew = new Set(existing)
-  for(const d of decls){
-    const name = d.name
-    if(!isObfuscatedName(name)) continue
-    const fieldRegex = new RegExp('\\.' + name + '\\b|\\:' + name + '\\b')
-    if(fieldRegex.test(code)) continue
-    let candidate = null
-    try { candidate = nameFromValue(d.value, usedNew) } catch(e) { candidate = null }
-    if(!candidate){
-      let cleaned = name.replace(/[^A-Za-z]/g,'')
-      if(cleaned.length >= 3) candidate = cleaned[0].toUpperCase() + cleaned.slice(1)
-      else candidate = 'Var' + (Math.floor(Math.random()*9000)+1000)
-      while(usedNew.has(candidate)) candidate += '_'
-      usedNew.add(candidate)
-    }
-    map[name] = candidate
-  }
-  if(Object.keys(map).length===0) return code
-  const newTokens = tokens.map(t=>{
-    if(t.type==='ident' && map.hasOwnProperty(t.text)) return {type:t.type, text: map[t.text]}
-    return t
-  })
-  return tokensToString(newTokens)
-}
-
-function beautify(code){
-  const lines = code.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n')
-  let indent = 0, out = []
-  for(let L of lines){
-    let line = L.trim()
-    if(line===''){ out.push(''); continue }
-    if(/^(end|until|else|elseif)\b/.test(line)) indent = Math.max(0, indent-1)
-    out.push('  '.repeat(indent) + line)
-    if(/\b(then|do|function|repeat)\b/.test(line)) indent++
-  }
-  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
-}
-
-async function deepDeobfuscate(fullClean){
-  let code = document.getElementById('inputCode').value || ''
-  if(!code){ alert('Paste code first'); return }
-  const doXor = document.getElementById('xorBrute').checked
-  const doExtract = document.getElementById('extractLoad').checked
-  const doBeaut = document.getElementById('beautify').checked
-  let iter = 0, changedAny = false
-  const maxIter = 25
-  while(iter++ < maxIter){
-    const before = code
-    code = decodeEscapedNumbersTokens(code)
-    code = decodeStringCharCalls(code)
-    code = collapseConcats(code)
-    code = unwrapWrapperCalls(code)
-    code = decodeLiteralsByHeuristics(code, {xorBrute:false})
-    if(doXor) code = bruteForceXorOnLiterals(code, 255)
-    if(doExtract) code = extractLoadstring(code)
-    code = removeJunk(code)
-    code = safeSemanticRename(code)
-    if(fullClean){
-      code = code.replace(/__\w+__/g,'').replace(/\b__G__\b/g,'')
-    }
-    setStatus('Pass ' + iter + (code !== before ? ' — changes' : ' — no changes'))
-    changedAny = changedAny || (code !== before)
-    await new Promise(r => setTimeout(r,10))
-    if(code === before) break
-  }
-  if(doBeaut) code = beautify(code)
-  setOutput(code || '-- no output --')
-  setStatus('Finished — iterations: ' + iter + (changedAny ? ' (changes made)' : ' (no changes)'))
-}
-
-function quickPass(){
-  let code = document.getElementById('inputCode').value || ''
-  if(!code){ alert('Paste code first'); return }
-  code = decodeEscapedNumbersTokens(code)
-  code = decodeStringCharCalls(code)
-  code = collapseConcats(code)
-  code = unwrapWrapperCalls(code)
-  code = decodeLiteralsByHeuristics(code, {xorBrute:true})
-  code = removeJunk(code)
-  code = safeSemanticRename(code)
-  if(document.getElementById('beautify').checked) code = beautify(code)
-  setOutput(code)
-  setStatus('Quick pass complete')
-}
-
-function stripOnly(){
-  let code = document.getElementById('inputCode').value || ''
-  if(!code){ alert('Paste code first'); return }
-  code = removeJunk(code)
-  if(document.getElementById('beautify').checked) code = beautify(code)
-  setOutput(code)
-  setStatus('Junk stripped')
-}
-
-function copyOutput(){
-  const out = document.getElementById('output').textContent || ''
-  if(!out){ alert('Nothing to copy'); return }
-  navigator.clipboard.writeText(out).then(()=>setStatus('Copied to clipboard'), ()=>setStatus('Copy failed'))
-}
-
-document.getElementById('deepBtn').addEventListener('click', ()=>deepDeobfuscate(false))
-document.getElementById('fullBtn').addEventListener('click', ()=>deepDeobfuscate(true))
-document.getElementById('quickBtn').addEventListener('click', quickPass)
-document.getElementById('stripBtn').addEventListener('click', stripOnly)
-document.getElementById('copyBtn').addEventListener('click', copyOutput)
-
+  // Fill with sample for quick testing (comment out if you like)
+  //inputEl.value = "local v1 = '\\112'\\nlocal v2 = '\\114'\\nlocal v3 = '\\105'\\nlocal v4 = '\\110'\\nlocal v5 = '\\116'\\nprint(v1..v2..v3..v4..v5)";
+  //outputEl.value = inputEl.value;
 })();
 </script>
 </body>
