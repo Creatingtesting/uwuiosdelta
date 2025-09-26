@@ -3,90 +3,310 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ultimate Luau Deobfuscator</title>
+<title>JS Luau Deobfuscator — Aggressive</title>
 <style>
-body{background:#111;color:#eee;font-family:Consolas,monospace;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh}
-.container{width:880px;max-width:95%;background:#1a1a1a;border-radius:12px;padding:20px;box-shadow:0 0 20px #0ff}
-textarea{width:100%;height:200px;background:#222;color:#0f0;border:1px solid #0ff;border-radius:6px;padding:8px;resize:vertical}
-button{background:linear-gradient(45deg,#0ff,#f0f);border:0;border-radius:6px;padding:8px 14px;color:#fff;cursor:pointer}
-button:hover{opacity:.85}
-.controls{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
-#output{white-space:pre-wrap;background:#000;color:#0f0;border:1px solid #f0f;border-radius:6px;padding:10px;max-height:420px;overflow:auto}
-label{color:#ccc;font-size:.9em}
-.status{margin:6px 0;font-size:.9em;color:#0ff}
+  :root{--bg:#0f1220;--panel:#111426;--accent:#00e6ff}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(135deg,var(--bg),#101326);color:#e6f7ff;display:flex;align-items:center;justify-content:center;height:100vh;padding:20px}
+  .wrap{width:100%;max-width:1000px;background:linear-gradient(180deg,var(--panel),#0b0f1b);border-radius:12px;padding:18px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
+  h1{margin:0 0 8px 0;font-size:1.25rem;color:var(--accent)}
+  .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
+  textarea{width:100%;height:220px;background:#0a0c14;color:#bff;padding:10px;border-radius:8px;border:1px solid rgba(0,230,255,0.08);font-family:monospace;resize:vertical}
+  button{background:linear-gradient(90deg,var(--accent),#b14cff);border:0;padding:8px 12px;border-radius:8px;color:#001;cursor:pointer;font-weight:600}
+  button:active{transform:translateY(1px)}
+  label{font-size:.9rem;color:#cfe}
+  .tiny{font-size:.86rem;color:#96f;padding-left:6px}
+  #output{background:#040510;color:#dff;padding:12px;border-radius:8px;border:1px solid rgba(177,76,255,0.08);height:300px;overflow:auto;font-family:monospace;white-space:pre-wrap}
+  .status{font-size:.9rem;color:#9ff;margin-top:6px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .spacer{flex:1}
 </style>
 </head>
 <body>
-<div class="container">
-  <h2>⚡ Ultimate Luau Deobfuscator</h2>
-  <textarea id="inputCode" placeholder="Paste obfuscated Luau here..."></textarea>
-  <div class="controls">
-    <button onclick="runDeep()">Full Deep Clean</button>
-    <button onclick="quick()">Quick Pass</button>
-    <button onclick="stripJunk()">Strip Junk</button>
-    <button onclick="copyOut()">Copy Output</button>
-    <label><input type="checkbox" id="beautify" checked> Beautify</label>
-    <label><input type="checkbox" id="xorBrute" checked> XOR brute</label>
+  <div class="wrap">
+    <h1>JS Luau Deobfuscator — Aggressive, multi-pass</h1>
+    <div class="tiny">Paste obfuscated Luau into the left box. Processing runs in-browser.</div>
+    <div style="display:flex;gap:12px;margin-top:12px;">
+      <div style="flex:1;min-width:300px;">
+        <label>Obfuscated input</label>
+        <textarea id="inputCode" placeholder="Paste your obfuscated Luau here..."></textarea>
+        <div class="row controls" style="margin-top:8px">
+          <button id="deepBtn">Deep Deobfuscate</button>
+          <button id="fullBtn">Full Deep Clean</button>
+          <button id="quickBtn">Quick Pass</button>
+          <button id="stripBtn">Strip Junk</button>
+          <button id="copyOutBtn">Copy Output</button>
+          <div class="spacer"></div>
+          <label><input type="checkbox" id="beautify" checked/> Beautify</label>
+          <label><input type="checkbox" id="xorBrute" checked/> XOR brute</label>
+          <label><input type="checkbox" id="extractLoadstring" checked/> Extract loadstring</label>
+        </div>
+      </div>
+      <div style="flex:1;min-width:300px;">
+        <label>Deobfuscated output</label>
+        <div id="output">Output will appear here...</div>
+        <div class="status" id="status">Idle</div>
+      </div>
+    </div>
   </div>
-  <div id="status" class="status">Idle</div>
-  <div id="output">Deobfuscated output appears here...</div>
-</div>
-
 <script>
-/* ============ Utility Helpers ============ */
-function logStatus(msg){document.getElementById('status').textContent=msg;}
-function out(txt){const o=document.getElementById('output');o.textContent=txt;o.scrollTop=o.scrollHeight;}
-function unq(s){return s.replace(/^['"]|['"]$/g,'');}
-function looksB64(s){return /^[A-Za-z0-9+/=]+$/.test(s)&&s.length%4===0;}
-function safeAtob(s){try{return atob(s);}catch(e){return null;}}
-function hex2txt(h){try{return h.replace(/../g,c=>String.fromCharCode(parseInt(c,16)));}catch(e){return null;}}
-function rot13(s){return s.replace(/[a-zA-Z]/g,c=>String.fromCharCode((c<="Z"?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));}
-function isAscii(s){return /^[\x09\x0A\x0D\x20-\x7E]*$/.test(s);}
-
-/* ============ Core Passes ============ */
-function decodeChars(c){return c.replace(/string\.char\(([\d,\s]+)\)/g,(m,nums)=>{try{return `"${nums.split(',').map(x=>String.fromCharCode(+x)).join('')}"`;}catch(e){return m;}});}
-function concatLits(c){return c.replace(/(".*?")\s*\.\.\s*(".*?")/g,(m,a,b)=>`"${unq(a)+unq(b)}"`);}
-function base64Lits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(looksB64(s)){const d=safeAtob(s);if(d&&isAscii(d))return `"${d}"`;}return m;});}
-function hexLits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(/^[0-9a-fA-F]+$/.test(s)&&s.length>4){const d=hex2txt(s);if(d&&isAscii(d))return `"${d}"`;}return m;});}
-function urlLits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(/%[0-9A-Fa-f]{2}/.test(s)){try{const d=decodeURIComponent(s);if(isAscii(d))return `"${d}"`;}catch(e){};}return m;});}
-function rot13Lits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(/[A-Za-z]{6}/.test(s)){const d=rot13(s);if(isAscii(d)&&/local|function|game/.test(d))return `"${d}"`;}return m;});}
-function xorBrute(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(s.length<4) return m;for(let k=1;k<256;k++){let d="";for(let i=0;i<s.length;i++)d+=String.fromCharCode(s.charCodeAt(i)^k);if(isAscii(d)&&(/local|function|Players|game/.test(d)||looksB64(d))){return `"${d}"`;}}return m;});}
-function stripJunkPass(c){return c
- .replace(/if\s+_[A-Za-z0-9]+\s*==\s*math\.random\([^)]+\)\s*then[\s\S]*?end/g,'')
- .replace(/local\s+_[A-Za-z0-9]+\s*=\s*[^;]+;?/g,'')
- .replace(/function\s+_[A-Za-z0-9]+\([^)]*\)\s*end/g,'-- removed junk function');}
-function normalizeIds(c){let idx=1;return c.replace(/\b_[A-Za-z0-9]{8,}\b/g,()=>`v${idx++}`);}
-
-/* Beautify */
-function beautify(c){let ind=0,out=[];for(let l of c.split(/\n/)){l=l.trim();if(/^end|^else|^elseif|^until/.test(l))ind--;out.push("  ".repeat(Math.max(0,ind))+l);if(/\bthen$|\bdo$|\bfunction\b|\brepeat\b/.test(l))ind++;}return out.join("\n");}
-
-/* ============ Orchestrator ============ */
-async function runDeep(){
-  let code=document.getElementById('inputCode').value;if(!code){alert('Paste code first');return;}
-  let iter=0,changed=true;
-  while(changed&&iter<20){
-    changed=false;iter++;
-    const before=code;
-    code=decodeChars(code);
-    code=concatLits(code);
-    code=base64Lits(code);
-    code=hexLits(code);
-    code=urlLits(code);
-    code=rot13Lits(code);
-    if(document.getElementById('xorBrute').checked) code=xorBrute(code);
-    code=stripJunkPass(code);
-    code=normalizeIds(code);
-    if(code!==before)changed=true;
-    logStatus(`Pass ${iter} done, ${changed?"changes":"no changes"}`);
-    await new Promise(r=>setTimeout(r,30));
-  }
-  if(document.getElementById('beautify').checked) code=beautify(code);
-  out(code);
-  logStatus(`Finished in ${iter} passes`);
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function setStatus(s){document.getElementById('status').textContent=s}
+function setOutput(s){const o=document.getElementById('output');o.textContent=s;o.scrollTop=o.scrollHeight}
+function safeAtob(s){
+  try{return decodeURIComponent(escape(window.atob(s)))}catch(e){try{return window.atob(s)}catch(e2){return null}}
 }
-function quick(){let c=document.getElementById('inputCode').value;c=decodeChars(concatLits(base64Lits(c)));out(c);logStatus("Quick pass done");}
-function stripJunk(){let c=document.getElementById('inputCode').value;c=stripJunkPass(c);out(c);logStatus("Junk stripped");}
-function copyOut(){navigator.clipboard.writeText(document.getElementById('output').textContent);}
+function isPrintableAscii(s){
+  if(typeof s!=='string') return false
+  for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);if(c===0||c>127) return false}
+  return true
+}
+function looksLikeBase64(s){
+  if(typeof s!=='string') return false
+  const t=s.replace(/\s+/g,'')
+  return t.length%4===0 && /^[A-Za-z0-9+/=]+$/.test(t) && t.length>=4
+}
+function hexToText(hex){
+  try{hex=hex.replace(/[^0-9a-fA-F]/g,''); if(hex.length%2!==0) return null; let out=''; for(let i=0;i<hex.length;i+=2) out+=String.fromCharCode(parseInt(hex.substr(i,2),16)); return out}catch(e){return null}
+}
+function rot13(s){return s.replace(/[A-Za-z]/g,function(c){const base=c<='Z'?65:97; return String.fromCharCode((c.charCodeAt(0)-base+13)%26+base)})}
+function urlDecode(s){try{return decodeURIComponent(s)}catch(e){return null}}
+function unquote(token){ if(token.length>=2 && (token[0]==='"' || token[0]==="'") && token[token.length-1]===token[0]) return token.slice(1,-1).replace(/\\n/g,'\n').replace(/\\r/g,'\r').replace(/\\"/g,'"').replace(/\\'/g,"'"); return token }
+function quoteForLua(s,q='"'){return q + s.replace(new RegExp(q,'g'),'\\'+q) + q}
+
+function decodeStringCharCalls(code){
+  return code.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/gi,function(m,nums){
+    try{const arr=nums.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n)&&n>=0&&n<=255); if(arr.length===0) return m; const s=arr.map(n=>String.fromCharCode(n)).join(''); if(!isPrintableAscii(s)) return m; return quoteForLua(s,'"')}catch(e){return m}
+  })
+}
+
+function collapseConcats(code){
+  let prev
+  do{prev=code
+    code=code.replace(/(['"])([\s\S]*?)\1\s*\.\.\s*(['"])([\s\S]*?)\3/g,function(m,q1,a,q2,b){
+      try{const merged=unquote(q1+a+q1)+unquote(q2+b+q2); if(!isPrintableAscii(merged)) return m; return quoteForLua(merged,'"')}catch(e){return m}
+    })
+  }while(code!==prev)
+  return code
+}
+
+function decodeB64Literals(code){
+  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
+    const q=token[0], inner=unquote(token)
+    if(!looksLikeBase64(inner)) return token
+    const dec=safeAtob(inner)
+    if(!dec||!isPrintableAscii(dec)) return token
+    return q+dec+q
+  })
+}
+
+function decodeHexLiterals(code){
+  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
+    const q=token[0], inner=unquote(token)
+    if(!/^[0-9a-fA-F]+$/.test(inner)||inner.length<6||inner.length%2!==0) return token
+    const dec=hexToText(inner)
+    if(!dec||!isPrintableAscii(dec)) return token
+    return q+dec+q
+  })
+}
+
+function decodeUrlLiterals(code){
+  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
+    const q=token[0], inner=unquote(token)
+    if(!/%[0-9A-Fa-f]{2}/.test(inner)) return token
+    const dec=urlDecode(inner)
+    if(!dec||!isPrintableAscii(dec)) return token
+    return q+dec+q
+  })
+}
+
+function decodeRot13Literals(code){
+  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
+    const q=token[0], inner=unquote(token)
+    const letters=(inner.match(/[A-Za-z]/g)||[]).length
+    if(letters<6) return token
+    const dec=rot13(inner)
+    if(!dec||!isPrintableAscii(dec)) return token
+    if(/local|function|print|game|Players/.test(dec)) return q+dec+q
+    if(/[a-zA-Z]{3,}/.test(dec)) return q+dec+q
+    return token
+  })
+}
+
+function bruteForceXorLiterals(code,maxKey){
+  maxKey = typeof maxKey === 'number' ? maxKey : 255
+  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
+    const q=token[0], inner=unquote(token)
+    if(inner.length<4) return token
+    for(let k=1;k<=maxKey;k++){
+      let out=''
+      for(let i=0;i<inner.length;i++) out+=String.fromCharCode(inner.charCodeAt(i)^k)
+      if(!isPrintableAscii(out)) continue
+      if(/local|function|print|game|Players|require|workspace/.test(out)) return q+out+q
+      if(looksLikeBase64(out)) return q+out+q
+      if(/[a-zA-Z]{6,}/.test(out)&&out.split(/\s+/).length>1) return q+out+q
+    }
+    return token
+  })
+}
+
+function unwrapWrapperCalls(code){
+  code = code.replace(/b64decode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g,function(m,p1){
+    const inner=unquote(p1)
+    if(!looksLikeBase64(inner)) return m
+    const dec=safeAtob(inner)
+    if(!dec||!isPrintableAscii(dec)) return m
+    return p1[0]+dec+p1[0]
+  })
+  code = code.replace(/xorDecode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*,\s*(\d{1,3})\s*\)/g,function(m,p1,p2,p3,keyStr){
+    const inner=unquote(p1), key=parseInt(keyStr,10)
+    let out=''
+    for(let i=0;i<inner.length;i++) out+=String.fromCharCode(inner.charCodeAt(i)^key)
+    if(!isPrintableAscii(out)) return m
+    return p1[0]+out+p1[0]
+  })
+  return code
+}
+
+function removeJunkPatterns(code){
+  let changed=false
+  let newCode=code.replace(/if\s+_[A-Za-z0-9]{3,}\s*==\s*math\.random\s*\([^\)]*\)\s*then[\s\S]*?end/g,'')
+  if(newCode!==code){changed=true; code=newCode}
+  newCode=code.replace(/(?:\n|\r|\r\n)\s*local\s+_[A-Za-z0-9]{3,}\s*=\s*(?:math\.[a-zA-Z_]+\([^)]*\)|b64decode\s*\([^)]*\)|xorDecode\s*\([^)]*\)|[A-Za-z0-9_]+\([^)]*\))[^\n]*(\n|\r\n?){3,}/g,'\n')
+  if(newCode!==code){changed=true; code=newCode}
+  newCode=code.replace(/(?:\n|\r\n)\s*(local\s+_[A-Za-z0-9]{3,}\s*=[^\n]+\n){6,}/g,'\n')
+  if(newCode!==code){changed=true; code=newCode}
+  newCode=code.replace(/function\s+_[A-Za-z0-9]{3,}\([^)]*\)\s*[\s\S]*?end/g,'--removed_junk_function')
+  if(newCode!==code){changed=true; code=newCode}
+  return code
+}
+
+function normalizeIdentifiers(code){
+  const keywords = new Set(['local','function','end','if','then','else','elseif','for','do','while','repeat','until','return','break','and','or','not','true','false','nil','print','game','Players','workspace','wait','require','spawn'])
+  const idRegex = /[A-Za-z_][A-Za-z0-9_]*/g
+  const names={}
+  let match
+  while((match = idRegex.exec(code)) !== null){
+    const name = match[0]
+    if(keywords.has(name)) continue
+    if(name.length>=10 || /^_[A-Za-z0-9]{6,}$/.test(name) || /[A-Z]{3,}/.test(name)) names[name] = (names[name]||0) + 1
+  }
+  const entries = Object.entries(names).sort((a,b)=>b[1]-a[1])
+  if(entries.length===0) return code
+  const map={}
+  let vCount=1, fCount=1
+  for(const [name,count] of entries){
+    const funcPattern = new RegExp('\\bfunction\\s+'+name+'\\b')
+    const callPattern = new RegExp('\\b'+name+'\\s*\\(')
+    if(funcPattern.test(code) || (callPattern.test(code) && count>2)) map[name]='f'+(fCount++)
+    else map[name]='v'+(vCount++)
+  }
+  const sortedNames = Object.keys(map).sort((a,b)=>b.length-a.length)
+  for(const orig of sortedNames){
+    const safeOrig = orig.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')
+    const re = new RegExp('\\b'+safeOrig+'\\b','g')
+    code = code.replace(re, map[orig])
+  }
+  return code
+}
+
+function extractLoadstring(code){
+  code = code.replace(/loadstring\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g,function(m,p1){
+    const inner = unquote(p1)
+    if(looksLikeBase64(inner)){const dec=safeAtob(inner); if(dec&&isPrintableAscii(dec)) return dec}
+    return p1
+  })
+  return code
+}
+
+function simpleBeautify(code){
+  const lines = code.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n')
+  let indent=0
+  const out=[]
+  for(let rawLine of lines){
+    let line = rawLine.trim()
+    if(line===''){out.push(''); continue}
+    if(/^\b(end|until|else|elseif)\b/.test(line)) indent = Math.max(0, indent-1)
+    out.push('  '.repeat(indent) + line)
+    if(/\b(then|do|function|repeat)\b/.test(line)) indent++
+  }
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
+}
+
+async function runDeepInternal(fullClean){
+  let code = document.getElementById('inputCode').value || ''
+  if(!code){alert('Paste code first'); return}
+  const doBeautify = document.getElementById('beautify').checked
+  const doXor = document.getElementById('xorBrute').checked
+  const extract = document.getElementById('extractLoadstring').checked
+  let iteration = 0
+  let changedAny = false
+  const maxIter = 25
+  while(iteration++ < maxIter){
+    let roundChanged = false
+    const before = code
+    code = decodeStringCharCalls(code)
+    code = collapseConcats(code)
+    code = unwrapWrapperCalls(code)
+    code = decodeB64Literals(code)
+    code = decodeHexLiterals(code)
+    code = decodeUrlLiterals(code)
+    code = decodeRot13Literals(code)
+    if(doXor) code = bruteForceXorLiterals(code, 255)
+    if(extract) code = extractLoadstring(code)
+    code = removeJunkPatterns(code)
+    code = normalizeIdentifiers(code)
+    if(fullClean){
+      code = code.replace(/(?:_{2,}[A-Za-z0-9]{2,})/g,'')
+      code = code.replace(/\b__G__\b/g,'')
+    }
+    if(code !== before) roundChanged = true
+    changedAny = changedAny || roundChanged
+    setStatus('Pass ' + iteration + (roundChanged ? ' — changes' : ' — no changes'))
+    await new Promise(r => setTimeout(r,10))
+    if(!roundChanged) break
+  }
+  if(doBeautify) code = simpleBeautify(code)
+  setOutput(code || '-- no output --')
+  setStatus('Finished — iterations: ' + iteration + (changedAny ? ' (changes made)' : ' (no changes)'))
+}
+
+async function runDeep(){ await runDeepInternal(false) }
+async function runFull(){ await runDeepInternal(true) }
+
+function quickPass(){
+  let code = document.getElementById('inputCode').value || ''
+  if(!code){alert('Paste code first'); return}
+  code = decodeStringCharCalls(code)
+  code = collapseConcats(code)
+  code = unwrapWrapperCalls(code)
+  code = decodeB64Literals(code)
+  if(document.getElementById('xorBrute').checked) code = bruteForceXorLiterals(code, 64)
+  code = removeJunkPatterns(code)
+  if(document.getElementById('beautify').checked) code = simpleBeautify(code)
+  setOutput(code)
+  setStatus('Quick pass complete')
+}
+
+function stripJunkOnly(){
+  let code = document.getElementById('inputCode').value || ''
+  if(!code){alert('Paste code first'); return}
+  code = removeJunkPatterns(code)
+  if(document.getElementById('beautify').checked) code = simpleBeautify(code)
+  setOutput(code)
+  setStatus('Junk stripped')
+}
+
+function copyOutput(){
+  const outText = document.getElementById('output').textContent || ''
+  if(!outText){alert('Nothing to copy'); return}
+  navigator.clipboard.writeText(outText).then(()=>setStatus('Copied to clipboard'),()=>setStatus('Copy failed'))
+}
+
+document.getElementById('deepBtn').addEventListener('click', runDeep)
+document.getElementById('fullBtn').addEventListener('click', runFull)
+document.getElementById('quickBtn').addEventListener('click', quickPass)
+document.getElementById('stripBtn').addEventListener('click', stripJunkOnly)
+document.getElementById('copyOutBtn').addEventListener('click', copyOutput)
 </script>
 </body>
 </html>
