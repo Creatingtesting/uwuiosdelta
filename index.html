@@ -113,7 +113,7 @@
             <label><input type="checkbox" id="antiTamper"> Anti Tamper</label>
             <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
             <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
-            <label><input type="checkbox" id="over20kb"> Over 20KB Size</label>
+            <label><input type="checkbox" id="over5kb"> Over 5KB Size</label>
         </div>
         <div class="buttons">
             <button onclick="obfuscate('base64')">Base64 Strings</button>
@@ -204,7 +204,7 @@ end)
             const antiTamper = document.getElementById('antiTamper').checked;
             const maxProtection = document.getElementById('maxProtection').checked;
             const protection247 = document.getElementById('24Protection').checked;
-            const over20kb = document.getElementById('over20kb').checked;
+            const over5kb = document.getElementById('over5kb').checked;
 
             let temp = code;
             let outputType = '';
@@ -232,13 +232,14 @@ end)
             if (type === 'rename') {
                 temp = temp
                     .replace(/\blocal\s+(\w+)/g, (match, varName) => {
-                        return `local ${randomString(15)}`;
-                    })
-                    .replace(/\b(greet|player|name|i)\b/g, (match) => {
-                        return randomString(15);
+                        return `local ${randomString(20)}`;
                     })
                     .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
-                        return `function ${randomString(15)}`;
+                        return `function ${randomString(20)}`;
+                    })
+                    .replace(/\b(\w+)\b/g, (match, varName) => {
+                        if (['local', 'function', 'end', 'if', 'then', 'else', 'for', 'do', 'print', 'game', 'Players', 'LocalPlayer', 'Name'].includes(varName)) return varName;
+                        return randomString(20);
                     });
                 outputType = 'Variable Renaming';
             }
@@ -247,8 +248,12 @@ end)
                 const junkCode = `
 if ${randomString(10)} == math.random(1, 100) then
     local ${randomString(12)} = math.sin(math.random())
+    local ${randomString(12)} = math.cos(math.random())
+    local ${randomString(12)} = math.tan(math.random())
 else
     local ${randomString(12)} = math.cos(math.random())
+    local ${randomString(12)} = math.sin(math.random())
+    local ${randomString(12)} = math.tan(math.random())
 end
 `;
                 const lines = temp.split('\n');
@@ -257,47 +262,45 @@ end
             }
 
             if (type === 'max') {
-                // Apply each obfuscation sequentially to avoid overlap
-                // 1. Variable Renaming
+                // Apply all obfuscations sequentially
+                // 1. Variable Renaming (enhanced)
                 temp = temp
                     .replace(/\blocal\s+(\w+)/g, (match, varName) => {
-                        return `local ${randomString(15)}`;
-                    })
-                    .replace(/\b(greet|player|name|i)\b/g, (match) => {
-                        return randomString(15);
+                        return `local ${randomString(20)}`;
                     })
                     .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
-                        return `function ${randomString(15)}`;
+                        return `function ${randomString(20)}`;
+                    })
+                    .replace(/\b(\w+)\b/g, (match, varName) => {
+                        if (['local', 'function', 'end', 'if', 'then', 'else', 'for', 'do', 'print', 'game', 'Players', 'LocalPlayer', 'Name'].includes(varName)) return varName;
+                        return randomString(20);
                     });
 
-                // 2. Control Flow
+                // 2. Control Flow (enhanced with more junk)
                 const junkCode = `
 if ${randomString(10)} == math.random(1, 100) then
     local ${randomString(12)} = math.sin(math.random())
+    local ${randomString(12)} = math.cos(math.random())
+    local ${randomString(12)} = math.tan(math.random())
 else
     local ${randomString(12)} = math.cos(math.random())
+    local ${randomString(12)} = math.sin(math.random())
+    local ${randomString(12)} = math.tan(math.random())
 end
 `;
                 const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode) + '\n' + junkCode;
+                temp = lines.join('\n' + junkCode + junkCode) + '\n' + junkCode;
 
-                // 3. Base64 for half of the strings
+                // 3. String obfuscation: Base64 and XOR mixed
                 let stringCount = 0;
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
                     stringCount++;
-                    if (stringCount % 2 === 0) {
-                        return `b64decode("${btoa(str)}")`;
-                    }
-                    return match; // Leave some strings for XOR
-                });
-
-                // 4. XOR for remaining strings
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    let encoded = btoa(str);
                     let encrypted = '';
-                    for (let i = 0; i < str.length; i++) {
-                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ 42);
+                    for (let i = 0; i < encoded.length; i++) {
+                        encrypted += String.fromCharCode(encoded.charCodeAt(i) ^ 42);
                     }
-                    return `xorDecode("${encrypted.replace(/"/g, '\\"')}", 42)`;
+                    return `b64decode(xorDecode("${encrypted.replace(/"/g, '\\"')}", 42))`;
                 });
 
                 output += base64DecodeFn + xorDecodeFn;
@@ -313,16 +316,16 @@ end
             }
 
             if (maxProtection) {
-                temp = temp.replace(/b64decode\("([^"]*)"\)/g, (match, encoded) => {
-                    let doubleEncoded = btoa(encoded);
-                    return `b64decode(b64decode("${doubleEncoded}"))`;
+                temp = temp.replace(/b64decode\((xorDecode\("([^"]*)"\, 42\))\)/g, (match, inner, encoded) => {
+                    let doubleInner = btoa(atob(encoded));
+                    return `b64decode(b64decode(xorDecode("${doubleInner}", 42)))`;
                 });
             }
 
-            if (over20kb) {
+            if (over5kb) {
                 let junk = '';
                 const junkBlock = () => `local ${randomString(10)} = b64decode("${btoa(randomString(50))}")\n`;
-                for (let i = 0; i < 500; i++) {
+                for (let i = 0; i < 100; i++) {
                     junk += junkBlock();
                 }
                 temp = junk + temp + junk;
