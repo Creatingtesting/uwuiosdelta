@@ -1,312 +1,141 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Luau Deobfuscator —</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>LuaU Deobfuscater (Light)</title>
 <style>
-  :root{--bg:#0f1220;--panel:#111426;--accent:#00e6ff}
-  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(135deg,var(--bg),#101326);color:#e6f7ff;display:flex;align-items:center;justify-content:center;height:100vh;padding:20px}
-  .wrap{width:100%;max-width:1000px;background:linear-gradient(180deg,var(--panel),#0b0f1b);border-radius:12px;padding:18px;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
-  h1{margin:0 0 8px 0;font-size:1.25rem;color:var(--accent)}
-  .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
-  textarea{width:100%;height:220px;background:#0a0c14;color:#bff;padding:10px;border-radius:8px;border:1px solid rgba(0,230,255,0.08);font-family:monospace;resize:vertical}
-  button{background:linear-gradient(90deg,var(--accent),#b14cff);border:0;padding:8px 12px;border-radius:8px;color:#001;cursor:pointer;font-weight:600}
-  button:active{transform:translateY(1px)}
-  label{font-size:.9rem;color:#cfe}
-  .tiny{font-size:.86rem;color:#96f;padding-left:6px}
-  #output{background:#040510;color:#dff;padding:12px;border-radius:8px;border:1px solid rgba(177,76,255,0.08);height:300px;overflow:auto;font-family:monospace;white-space:pre-wrap}
-  .status{font-size:.9rem;color:#9ff;margin-top:6px}
-  .controls{display:flex;gap:8px;flex-wrap:wrap}
-  .spacer{flex:1}
+body{margin:0;font-family:Arial,monospace;background:#0b1224;color:#e0f0ff;display:flex;align-items:center;justify-content:center;height:100vh;padding:10px}
+.container{width:100%;max-width:1000px;background:#0d1b3b;border-radius:12px;padding:20px;box-shadow:0 0 25px rgba(0,255,255,0.3)}
+h1{margin:0;font-size:1.3rem;color:#00ffff;text-align:center;text-shadow:0 0 8px #0ff}
+textarea{width:100%;height:250px;background:#071026;color:#cce;border:1px solid #00ffff;border-radius:8px;padding:10px;resize:vertical}
+#output{width:100%;height:300px;background:#061020;color:#cff;border:1px solid #00ffcc;border-radius:8px;padding:10px;overflow:auto;white-space:pre-wrap}
+.controls{margin:10px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:start}
+button{padding:8px 12px;border:none;border-radius:6px;background:linear-gradient(45deg,#00ffff,#ff00ff);color:#001;font-weight:700;cursor:pointer;transition:0.2s}
+button:hover{transform:scale(1.05);box-shadow:0 0 10px #00ffff}
+label{font-size:.9rem;color:#cce}
+.status{margin-top:6px;color:#9ff;font-size:.9rem}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Luau Deobfuscator — multi-pass</h1>
-    <div class="tiny">Paste obfuscated Luau into the left box. Processing runs in-browser.</div>
-    <div style="display:flex;gap:12px;margin-top:12px;">
-      <div style="flex:1;min-width:300px;">
-        <label>Obfuscated input</label>
-        <textarea id="inputCode" placeholder="Paste your obfuscated Luau here..."></textarea>
-        <div class="row controls" style="margin-top:8px">
-          <button id="deepBtn">Deep Deobfuscate</button>
-          <button id="fullBtn">Full Deep Clean</button>
-          <button id="quickBtn">Quick Pass</button>
-          <button id="stripBtn">Strip Junk</button>
-          <button id="copyOutBtn">Copy Output</button>
-          <div class="spacer"></div>
-          <label><input type="checkbox" id="beautify" checked/> Beautify</label>
-          <label><input type="checkbox" id="xorBrute" checked/> XOR brute</label>
-          <label><input type="checkbox" id="extractLoadstring" checked/> Extract loadstring</label>
-        </div>
-      </div>
-      <div style="flex:1;min-width:300px;">
-        <label>Deobfuscated output</label>
-        <div id="output">Output will appear here...</div>
-        <div class="status" id="status">Idle</div>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<h1>LuaU Deobfuscater (Light)</h1>
+<label>Obfuscated Input:</label>
+<textarea id="inputCode" placeholder="Paste your obfuscated LuaU code here..."></textarea>
+<div class="controls">
+<button id="deep">Deep Deobfuscate</button>
+<button id="quick">Quick</button>
+<button id="strip">Strip Junk</button>
+<button id="copy">Copy Output</button>
+<label><input type="checkbox" id="beautify" checked> Beautify</label>
+<label><input type="checkbox" id="xor" checked> XOR brute</label>
+<label><input type="checkbox" id="extract" checked> Extract loadstring</label>
+</div>
+<label>Deobfuscated Output:</label>
+<div id="output">Output will appear here...</div>
+<div class="status" id="status">Idle</div>
+</div>
 <script>
-function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
-function setStatus(s){document.getElementById('status').textContent=s}
-function setOutput(s){const o=document.getElementById('output');o.textContent=s;o.scrollTop=o.scrollHeight}
-function safeAtob(s){
-  try{return decodeURIComponent(escape(window.atob(s)))}catch(e){try{return window.atob(s)}catch(e2){return null}}
-}
-function isPrintableAscii(s){
-  if(typeof s!=='string') return false
-  for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);if(c===0||c>127) return false}
-  return true
-}
-function looksLikeBase64(s){
-  if(typeof s!=='string') return false
-  const t=s.replace(/\s+/g,'')
-  return t.length%4===0 && /^[A-Za-z0-9+/=]+$/.test(t) && t.length>=4
-}
-function hexToText(hex){
-  try{hex=hex.replace(/[^0-9a-fA-F]/g,''); if(hex.length%2!==0) return null; let out=''; for(let i=0;i<hex.length;i+=2) out+=String.fromCharCode(parseInt(hex.substr(i,2),16)); return out}catch(e){return null}
-}
-function rot13(s){return s.replace(/[A-Za-z]/g,function(c){const base=c<='Z'?65:97; return String.fromCharCode((c.charCodeAt(0)-base+13)%26+base)})}
+// UTILITY FUNCTIONS
+function setStatus(t){document.getElementById('status').textContent=t}
+function setOutput(t){const o=document.getElementById('output');o.textContent=t;o.scrollTop=o.scrollHeight}
+function safeAtob(s){try{return decodeURIComponent(escape(window.atob(s)))}catch(e){try{return window.atob(s)}catch(e2){return null}}}
+function isAscii(s){if(typeof s!=='string') return false;for(let i=0;i<s.length;i++){let c=s.charCodeAt(i);if(c===0||c>127)return false}return true}
+function unquote(s){if(s.length>=2&&(s[0]==='"'||s[0]==="'")&&s[s.length-1]===s[0])return s.slice(1,-1).replace(/\\n/g,'\n').replace(/\\r/g,'\r').replace(/\\"/g,'"').replace(/\\'/g,"'");return s}
+function qlua(s){return '"'+s.replace(/"/g,'\\"')+'"'}
+function rot13(s){return s.replace(/[A-Za-z]/g,c=>{let b=c<='Z'?65:97;return String.fromCharCode((c.charCodeAt(0)-b+13)%26+b)})}
+function hexToText(h){try{h=h.replace(/[^0-9a-fA-F]/g,'');if(h.length%2!==0)return null;let out='';for(let i=0;i<h.length;i+=2)out+=String.fromCharCode(parseInt(h.substr(i,2),16));return out}catch(e){return null}}
 function urlDecode(s){try{return decodeURIComponent(s)}catch(e){return null}}
-function unquote(token){ if(token.length>=2 && (token[0]==='"' || token[0]==="'") && token[token.length-1]===token[0]) return token.slice(1,-1).replace(/\\n/g,'\n').replace(/\\r/g,'\r').replace(/\\"/g,'"').replace(/\\'/g,"'"); return token }
-function quoteForLua(s,q='"'){return q + s.replace(new RegExp(q,'g'),'\\'+q) + q}
 
-function decodeStringCharCalls(code){
-  return code.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/gi,function(m,nums){
-    try{const arr=nums.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n)&&n>=0&&n<=255); if(arr.length===0) return m; const s=arr.map(n=>String.fromCharCode(n)).join(''); if(!isPrintableAscii(s)) return m; return quoteForLua(s,'"')}catch(e){return m}
-  })
-}
+// DEOBFUSCATION LAYERS
+function decodeStringChar(code){return code.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/gi,(m,nums)=>{try{const arr=nums.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n)&&n>=0&&n<=255);if(arr.length===0)return m;const s=arr.map(n=>String.fromCharCode(n)).join('');if(!isAscii(s))return m;return qlua(s)}catch(e){return m}})}
+function collapseConcats(code){let prev;do{prev=code;code=code.replace(/(['"])([\s\S]*?)\1\s*\.\.\s*(['"])([\s\S]*?)\3/g,(m,q1,a,q2,b)=>{try{const merged=unquote(q1+a+q1)+unquote(q2+b+q2);if(!isAscii(merged))return m;return qlua(merged)}catch(e){return m}})}while(code!==prev);return code}
+function decodeB64Lits(code){return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, tok=>{const inner=unquote(tok);if(!inner||inner.length<2)return tok;const dec=safeAtob(inner);if(!dec||!isAscii(dec))return tok;return qlua(dec)})}
+function decodeHexLits(code){return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, tok=>{const inner=unquote(tok);const dec=hexToText(inner);if(!dec||!isAscii(dec))return tok;return qlua(dec)})}
+function decodeUrlLits(code){return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, tok=>{const inner=unquote(tok);const dec=urlDecode(inner);if(!dec||!isAscii(dec))return tok;return qlua(dec)})}
+function decodeRot13Lits(code){return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,tok=>{const inner=unquote(tok);const dec=rot13(inner);return qlua(dec)})}
+function bruteXorLits(code,maxKey){maxKey=maxKey||255;return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,tok=>{const inner=unquote(tok);for(let k=1;k<=maxKey;k++){let out='';for(let i=0;i<inner.length;i++)out+=String.fromCharCode(inner.charCodeAt(i)^k);if(/local|print|game|Players/.test(out))return qlua(out)}return tok})}
+function unwrapWrappers(code){code=code.replace(/b64decode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g,(m,p1)=>{const inner=unquote(p1);const dec=safeAtob(inner);if(dec&&isAscii(dec))return qlua(dec);return m});return code}
+function removeJunk(code){code=code.replace(/if\s+_[A-Za-z0-9]{3,}\s*==\s*math\.random[\s\S]*?end/g,'');code=code.replace(/function\s+_[A-Za-z0-9]{3,}\([^)]*\)\s*[\s\S]*?end/g,'');return code}
+function extractLoad(code){code=code.replace(/loadstring\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g,(m,p1)=>{const inner=unquote(p1);const dec=safeAtob(inner);if(dec&&isAscii(dec))return dec;return p1});return code}
 
-function collapseConcats(code){
-  let prev
-  do{prev=code
-    code=code.replace(/(['"])([\s\S]*?)\1\s*\.\.\s*(['"])([\s\S]*?)\3/g,function(m,q1,a,q2,b){
-      try{const merged=unquote(q1+a+q1)+unquote(q2+b+q2); if(!isPrintableAscii(merged)) return m; return quoteForLua(merged,'"')}catch(e){return m}
-    })
-  }while(code!==prev)
-  return code
-}
-
-function decodeB64Literals(code){
-  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
-    const q=token[0], inner=unquote(token)
-    if(!looksLikeBase64(inner)) return token
-    const dec=safeAtob(inner)
-    if(!dec||!isPrintableAscii(dec)) return token
-    return q+dec+q
-  })
-}
-
-function decodeHexLiterals(code){
-  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
-    const q=token[0], inner=unquote(token)
-    if(!/^[0-9a-fA-F]+$/.test(inner)||inner.length<6||inner.length%2!==0) return token
-    const dec=hexToText(inner)
-    if(!dec||!isPrintableAscii(dec)) return token
-    return q+dec+q
-  })
-}
-
-function decodeUrlLiterals(code){
-  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
-    const q=token[0], inner=unquote(token)
-    if(!/%[0-9A-Fa-f]{2}/.test(inner)) return token
-    const dec=urlDecode(inner)
-    if(!dec||!isPrintableAscii(dec)) return token
-    return q+dec+q
-  })
-}
-
-function decodeRot13Literals(code){
-  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
-    const q=token[0], inner=unquote(token)
-    const letters=(inner.match(/[A-Za-z]/g)||[]).length
-    if(letters<6) return token
-    const dec=rot13(inner)
-    if(!dec||!isPrintableAscii(dec)) return token
-    if(/local|function|print|game|Players/.test(dec)) return q+dec+q
-    if(/[a-zA-Z]{3,}/.test(dec)) return q+dec+q
-    return token
-  })
-}
-
-function bruteForceXorLiterals(code,maxKey){
-  maxKey = typeof maxKey === 'number' ? maxKey : 255
-  return code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g,function(token){
-    const q=token[0], inner=unquote(token)
-    if(inner.length<4) return token
-    for(let k=1;k<=maxKey;k++){
-      let out=''
-      for(let i=0;i<inner.length;i++) out+=String.fromCharCode(inner.charCodeAt(i)^k)
-      if(!isPrintableAscii(out)) continue
-      if(/local|function|print|game|Players|require|workspace/.test(out)) return q+out+q
-      if(looksLikeBase64(out)) return q+out+q
-      if(/[a-zA-Z]{6,}/.test(out)&&out.split(/\s+/).length>1) return q+out+q
-    }
-    return token
-  })
-}
-
-function unwrapWrapperCalls(code){
-  code = code.replace(/b64decode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g,function(m,p1){
-    const inner=unquote(p1)
-    if(!looksLikeBase64(inner)) return m
-    const dec=safeAtob(inner)
-    if(!dec||!isPrintableAscii(dec)) return m
-    return p1[0]+dec+p1[0]
-  })
-  code = code.replace(/xorDecode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*,\s*(\d{1,3})\s*\)/g,function(m,p1,p2,p3,keyStr){
-    const inner=unquote(p1), key=parseInt(keyStr,10)
-    let out=''
-    for(let i=0;i<inner.length;i++) out+=String.fromCharCode(inner.charCodeAt(i)^key)
-    if(!isPrintableAscii(out)) return m
-    return p1[0]+out+p1[0]
-  })
-  return code
-}
-
-function removeJunkPatterns(code){
-  let changed=false
-  let newCode=code.replace(/if\s+_[A-Za-z0-9]{3,}\s*==\s*math\.random\s*\([^\)]*\)\s*then[\s\S]*?end/g,'')
-  if(newCode!==code){changed=true; code=newCode}
-  newCode=code.replace(/(?:\n|\r|\r\n)\s*local\s+_[A-Za-z0-9]{3,}\s*=\s*(?:math\.[a-zA-Z_]+\([^)]*\)|b64decode\s*\([^)]*\)|xorDecode\s*\([^)]*\)|[A-Za-z0-9_]+\([^)]*\))[^\n]*(\n|\r\n?){3,}/g,'\n')
-  if(newCode!==code){changed=true; code=newCode}
-  newCode=code.replace(/(?:\n|\r\n)\s*(local\s+_[A-Za-z0-9]{3,}\s*=[^\n]+\n){6,}/g,'\n')
-  if(newCode!==code){changed=true; code=newCode}
-  newCode=code.replace(/function\s+_[A-Za-z0-9]{3,}\([^)]*\)\s*[\s\S]*?end/g,'--removed_junk_function')
-  if(newCode!==code){changed=true; code=newCode}
-  return code
-}
-
-function normalizeIdentifiers(code){
-  const keywords = new Set(['local','function','end','if','then','else','elseif','for','do','while','repeat','until','return','break','and','or','not','true','false','nil','print','game','Players','workspace','wait','require','spawn'])
-  const idRegex = /[A-Za-z_][A-Za-z0-9_]*/g
-  const names={}
-  let match
-  while((match = idRegex.exec(code)) !== null){
-    const name = match[0]
-    if(keywords.has(name)) continue
-    if(name.length>=10 || /^_[A-Za-z0-9]{6,}$/.test(name) || /[A-Z]{3,}/.test(name)) names[name] = (names[name]||0) + 1
+// INTELLIGENT VARIABLE NAMING (simple semantic guesses)
+function intelligentRename(code){
+  const regex = /local\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)/g
+  let map = {}
+  let m
+  let counter=1
+  while((m=regex.exec(code))!==null){
+    let name = m[1], val = m[2].trim()
+    if(val.startsWith('"')||val.startsWith("'")){
+      let strVal = unquote(val)
+      let newName = strVal.replace(/\W+/g,'')
+      if(newName.length>0)newName=newName[0].toUpperCase()+newName.slice(1)
+      else newName="String"+counter++
+      map[name]=newName
+    } else if(/^\d+$/.test(val)){
+      map[name]="Count"+counter++
+    } else if(/true|false/.test(val)){
+      map[name]="Is"+counter++
+    } else if(val.startsWith("function")){
+      map[name]="Func"+counter++
+    } else map[name]="Var"+counter++
   }
-  const entries = Object.entries(names).sort((a,b)=>b[1]-a[1])
-  if(entries.length===0) return code
-  const map={}
-  let vCount=1, fCount=1
-  for(const [name,count] of entries){
-    const funcPattern = new RegExp('\\bfunction\\s+'+name+'\\b')
-    const callPattern = new RegExp('\\b'+name+'\\s*\\(')
-    if(funcPattern.test(code) || (callPattern.test(code) && count>2)) map[name]='f'+(fCount++)
-    else map[name]='v'+(vCount++)
-  }
-  const sortedNames = Object.keys(map).sort((a,b)=>b.length-a.length)
-  for(const orig of sortedNames){
-    const safeOrig = orig.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')
-    const re = new RegExp('\\b'+safeOrig+'\\b','g')
-    code = code.replace(re, map[orig])
+  for(let orig in map){
+    const re=new RegExp('\\b'+orig+'\\b','g')
+    code=code.replace(re,map[orig])
   }
   return code
 }
 
-function extractLoadstring(code){
-  code = code.replace(/loadstring\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g,function(m,p1){
-    const inner = unquote(p1)
-    if(looksLikeBase64(inner)){const dec=safeAtob(inner); if(dec&&isPrintableAscii(dec)) return dec}
-    return p1
-  })
-  return code
-}
-
-function simpleBeautify(code){
-  const lines = code.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n')
-  let indent=0
-  const out=[]
-  for(let rawLine of lines){
-    let line = rawLine.trim()
-    if(line===''){out.push(''); continue}
-    if(/^\b(end|until|else|elseif)\b/.test(line)) indent = Math.max(0, indent-1)
-    out.push('  '.repeat(indent) + line)
-    if(/\b(then|do|function|repeat)\b/.test(line)) indent++
+// BEAUTIFY
+function beautify(code){
+  const lines=code.replace(/\r\n/g,'\n').split('\n')
+  let indent=0,out=[]
+  for(let line of lines){
+    line=line.trim()
+    if(line===''){out.push('');continue}
+    if(/^(end|until|else|elseif)\b/.test(line))indent=Math.max(0,indent-1)
+    out.push('  '.repeat(indent)+line)
+    if(/\b(then|do|function|repeat)\b/.test(line))indent++
   }
-  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
+  return out.join('\n')
 }
 
-async function runDeepInternal(fullClean){
-  let code = document.getElementById('inputCode').value || ''
-  if(!code){alert('Paste code first'); return}
-  const doBeautify = document.getElementById('beautify').checked
-  const doXor = document.getElementById('xorBrute').checked
-  const extract = document.getElementById('extractLoadstring').checked
-  let iteration = 0
-  let changedAny = false
-  const maxIter = 25
-  while(iteration++ < maxIter){
-    let roundChanged = false
-    const before = code
-    code = decodeStringCharCalls(code)
-    code = collapseConcats(code)
-    code = unwrapWrapperCalls(code)
-    code = decodeB64Literals(code)
-    code = decodeHexLiterals(code)
-    code = decodeUrlLiterals(code)
-    code = decodeRot13Literals(code)
-    if(doXor) code = bruteForceXorLiterals(code, 255)
-    if(extract) code = extractLoadstring(code)
-    code = removeJunkPatterns(code)
-    code = normalizeIdentifiers(code)
-    if(fullClean){
-      code = code.replace(/(?:_{2,}[A-Za-z0-9]{2,})/g,'')
-      code = code.replace(/\b__G__\b/g,'')
-    }
-    if(code !== before) roundChanged = true
-    changedAny = changedAny || roundChanged
-    setStatus('Pass ' + iteration + (roundChanged ? ' — changes' : ' — no changes'))
-    await new Promise(r => setTimeout(r,10))
-    if(!roundChanged) break
+// MAIN PROCESS
+async function deobfuscate(full){
+  let code=document.getElementById('inputCode').value||''
+  if(!code){alert('Paste code first');return}
+  const doBeaut=document.getElementById('beautify').checked
+  const doXor=document.getElementById('xor').checked
+  const doExtract=document.getElementById('extract').checked
+  let iter=0,maxIter=15
+  while(iter++<maxIter){
+    let prev=code
+    code=decodeStringChar(code)
+    code=collapseConcats(code)
+    code=unwrapWrappers(code)
+    code=decodeB64Lits(code)
+    code=decodeHexLits(code)
+    code=decodeUrlLits(code)
+    code=decodeRot13Lits(code)
+    if(doXor) code=bruteXorLits(code)
+    if(doExtract) code=extractLoad(code)
+    code=removeJunk(code)
+    code=intelligentRename(code)
+    if(code===prev)break
+    await new Promise(r=>setTimeout(r,1))
   }
-  if(doBeautify) code = simpleBeautify(code)
-  setOutput(code || '-- no output --')
-  setStatus('Finished — iterations: ' + iteration + (changedAny ? ' (changes made)' : ' (no changes)'))
-}
-
-async function runDeep(){ await runDeepInternal(false) }
-async function runFull(){ await runDeepInternal(true) }
-
-function quickPass(){
-  let code = document.getElementById('inputCode').value || ''
-  if(!code){alert('Paste code first'); return}
-  code = decodeStringCharCalls(code)
-  code = collapseConcats(code)
-  code = unwrapWrapperCalls(code)
-  code = decodeB64Literals(code)
-  if(document.getElementById('xorBrute').checked) code = bruteForceXorLiterals(code, 64)
-  code = removeJunkPatterns(code)
-  if(document.getElementById('beautify').checked) code = simpleBeautify(code)
+  if(doBeaut) code=beautify(code)
   setOutput(code)
-  setStatus('Quick pass complete')
+  setStatus('Finished ('+iter+' iterations)')
 }
 
-function stripJunkOnly(){
-  let code = document.getElementById('inputCode').value || ''
-  if(!code){alert('Paste code first'); return}
-  code = removeJunkPatterns(code)
-  if(document.getElementById('beautify').checked) code = simpleBeautify(code)
-  setOutput(code)
-  setStatus('Junk stripped')
-}
-
-function copyOutput(){
-  const outText = document.getElementById('output').textContent || ''
-  if(!outText){alert('Nothing to copy'); return}
-  navigator.clipboard.writeText(outText).then(()=>setStatus('Copied to clipboard'),()=>setStatus('Copy failed'))
-}
-
-document.getElementById('deepBtn').addEventListener('click', runDeep)
-document.getElementById('fullBtn').addEventListener('click', runFull)
-document.getElementById('quickBtn').addEventListener('click', quickPass)
-document.getElementById('stripBtn').addEventListener('click', stripJunkOnly)
-document.getElementById('copyOutBtn').addEventListener('click', copyOutput)
+// BUTTON EVENTS
+document.getElementById('deep').onclick=()=>deobfuscate(true)
+document.getElementById('quick').onclick=()=>deobfuscate(false)
+document.getElementById('strip').onclick=()=>{let c=document.getElementById('inputCode').value;setOutput(removeJunk(c));setStatus('Junk stripped')}
+document.getElementById('copy').onclick=()=>{navigator.clipboard.writeText(document.getElementById('output').textContent).then(()=>alert('Copied!'))}
 </script>
 </body>
 </html>
