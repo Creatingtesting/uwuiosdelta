@@ -87,6 +87,11 @@
             white-space: pre-wrap;
             box-sizing: border-box;
         }
+        #output-type {
+            font-size: 0.9em;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
         .glow {
             animation: glow 1.5s ease-in-out infinite alternate;
         }
@@ -119,6 +124,7 @@
             <button onclick="copyCode()">Copy Code</button>
         </div>
         <h2>Obfuscated Code</h2>
+        <div id="output-type">Select an obfuscation method...</div>
         <div id="output">Obfuscated code will appear here...</div>
     </div>
 
@@ -201,14 +207,17 @@ end)
             const over80kb = document.getElementById('over80kb').checked;
 
             let temp = code;
+            let outputType = '';
 
-            if (type === 'base64' || type === 'max') {
+            if (type === 'base64') {
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
                     return `b64decode("${btoa(str)}")`;
                 });
+                output += base64DecodeFn;
+                outputType = 'Base64 Strings';
             }
 
-            if (type === 'xor' || type === 'max') {
+            if (type === 'xor') {
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
                     let encrypted = '';
                     for (let i = 0; i < str.length; i++) {
@@ -216,9 +225,11 @@ end)
                     }
                     return `xorDecode("${encrypted.replace(/"/g, '\\"')}", 42)`;
                 });
+                output += xorDecodeFn;
+                outputType = 'XOR Strings';
             }
 
-            if (type === 'rename' || type === 'max') {
+            if (type === 'rename') {
                 temp = temp
                     .replace(/\blocal\s+(\w+)/g, (match, varName) => {
                         return `local ${randomString(15)}`;
@@ -229,9 +240,10 @@ end)
                     .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
                         return `function ${randomString(15)}`;
                     });
+                outputType = 'Variable Renaming';
             }
 
-            if (type === 'control' || type === 'max') {
+            if (type === 'control') {
                 const junkCode = `
 if ${randomString(10)} == math.random(1, 100) then
     local ${randomString(12)} = math.sin(math.random())
@@ -241,6 +253,55 @@ end
 `;
                 const lines = temp.split('\n');
                 temp = lines.join('\n' + junkCode) + '\n' + junkCode;
+                outputType = 'Control Flow';
+            }
+
+            if (type === 'max') {
+                // Apply each obfuscation sequentially to avoid overlap
+                // 1. Variable Renaming
+                temp = temp
+                    .replace(/\blocal\s+(\w+)/g, (match, varName) => {
+                        return `local ${randomString(15)}`;
+                    })
+                    .replace(/\b(greet|player|name|i)\b/g, (match) => {
+                        return randomString(15);
+                    })
+                    .replace(/\bfunction\s+(\w+)/g, (match, funcName) => {
+                        return `function ${randomString(15)}`;
+                    });
+
+                // 2. Control Flow
+                const junkCode = `
+if ${randomString(10)} == math.random(1, 100) then
+    local ${randomString(12)} = math.sin(math.random())
+else
+    local ${randomString(12)} = math.cos(math.random())
+end
+`;
+                const lines = temp.split('\n');
+                temp = lines.join('\n' + junkCode) + '\n' + junkCode;
+
+                // 3. Base64 for half of the strings
+                let stringCount = 0;
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    stringCount++;
+                    if (stringCount % 2 === 0) {
+                        return `b64decode("${btoa(str)}")`;
+                    }
+                    return match; // Leave some strings for XOR
+                });
+
+                // 4. XOR for remaining strings
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    let encrypted = '';
+                    for (let i = 0; i < str.length; i++) {
+                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ 42);
+                    }
+                    return `xorDecode("${encrypted.replace(/"/g, '\\"')}", 42)`;
+                });
+
+                output += base64DecodeFn + xorDecodeFn;
+                outputType = 'Obfuscate Using Everything';
             }
 
             if (antiTamper) {
@@ -267,17 +328,11 @@ end
                 temp = junk + temp + junk;
             }
 
-            if (type === 'base64' || type === 'max') {
-                output += base64DecodeFn;
-            }
-            if (type === 'xor' || type === 'max') {
-                output += xorDecodeFn;
-            }
-
             output += temp;
 
             output = removeComments(output);
 
+            document.getElementById('output-type').textContent = `Obfuscation Type: ${outputType}`;
             document.getElementById('output').textContent = output || 'Error: No output generated';
         }
 
