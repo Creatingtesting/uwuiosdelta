@@ -120,7 +120,9 @@
             <button onclick="deobfuscate('xor')">Deobfuscate XOR</button>
             <button onclick="deobfuscate('rename')">Simplify Variables</button>
             <button onclick="deobfuscate('control')">Remove Control Flow</button>
+            <button onclick="deobfuscate('moonsec')">Deobfuscate Moonsec V3</button>
             <button onclick="deobfuscate('max')">Deobfuscate Everything</button>
+            <button onclick="showSupport()">Support</button>
             <button onclick="copyCode()">Copy Code</button>
         </div>
         <h2>Deobfuscated Code</h2>
@@ -272,6 +274,21 @@ end
                 outputType = type === 'xor' ? 'Deobfuscate XOR' : outputType;
             }
 
+            // Deobfuscate Moonsec V3
+            if (type === 'moonsec' || type === 'max') {
+                // Remove protection header and junk loops
+                output = output.replace(/This file was protected with MoonSec V3 by Federal#9999\n?/g, '');
+                output = output.replace(/local function \([a-zA-Z_]+\)\s*local [a-zA-Z_]+ = nil\s*[a-zA-Z_]+:gsub\('.+'\),\s*\(function\(a\)\s*[a-zA-Z_]+ = a;\s*end\)\s*return\s*\(function\([a-zA-Z_, ]+\)\s*local [a-zA-Z_ ]+;\s*local [a-zA-Z_ ]+;\s*local [a-zA-Z_ ]+;\s*local [a-zA-Z_ ]+;\s*local [a-zA-Z_ ]+;\s*local [a-zA-Z_ ]+ = 24915;\s*local [a-zA-Z_ ]+ = 0;\s*local [a-zA-Z_ ]+ = {};\s*while [a-zA-Z_ ]+ < 420 do\s*[a-zA-Z_ ]+ = [a-zA-Z_ ]+ + 1;\s*while [a-zA-Z_ ]+ < 0x23f and [a-zA-Z_ ]+ % 0x28e4 < 0x1472 do\s*[a-zA-Z_ ]+ = [a-zA-Z_ ]+ + 1;\s*[a-zA-Z_ ]+ = \([a-zA-Z_ ]+ - 864\) % 11423;\s*local [a-zA-Z_ ]+ = [a-zA-Z_ ]+ + [a-zA-Z_ ]+;\s*if \([a-zA-Z_ ]+ % 0x4554\) >= 0x22aa then\s*[a-zA-Z_ ]+ = \([a-zA-Z_ ]+ + 0xee\) % 0xb98;\s*while [a-zA-Z_ ]+ < 0x127 and [a-zA-Z_ ]+ % 0xd7c < 0x6be do\s*[a-zA-Z_ ]+ = [a-zA-Z_ ]+ + 1;\s*[a-zA-Z_ ]+ = \([a-zA-Z_ ]+ \* 76\) % 21309;\s*local [a-zA-Z_ ]+ = [a-zA-Z_ ]+ + [a-zA-Z_ ]+;\s*if \([a-zA-Z_ ]+ % 0x10c6\) < 0x863 then\s*[a-zA-Z_ ]+ = \([a-zA-Z_ ]+ + 0x36\) % 0x88c8;\s*local [a-zA-Z_ ]+ = 67994;\s*if not [a-zA-Z_ ]+\[[a-zA-Z_ ]+\] then\s*[a-zA-Z_ ]+\[[a-zA-Z_ ]+\] = 0x1\s*end\s*end\s*end\s*end\s*end\s*return [a-zA-Z_ ]+\s*end\)\s*end/g, '');
+                // Extract and decode loadstring strings
+                const mainScriptMatch = output.match(/loadstring\("([^"]+)"\)/);
+                if (mainScriptMatch) {
+                    let decoded = decodeMoonsecString(mainScriptMatch[1]);
+                    output = output.replace(/loadstring\("([^"]+)"\)/g, decoded);
+                }
+                output = output.replace(/loadstring\([^)]+\)\(\)/g, '');
+                outputType = type === 'moonsec' ? 'Deobfuscate Moonsec V3' : outputType;
+            }
+
             // Simplify variable names
             if (type === 'rename' || type === 'max') {
                 let varCounter = 1;
@@ -307,9 +324,23 @@ end
             document.getElementById('output').textContent = output || 'Error: No output generated';
         }
 
+        function showSupport() {
+            document.getElementById('output-type').textContent = 'Support';
+            document.getElementById('output').textContent = 'Coming soon';
+        }
+
+        function decodeMoonsecString(encoded) {
+            let decoded = '';
+            const key = 42; // Adjust if specific Moonsec V3 key is known
+            for (let i = 0; i < encoded.length; i++) {
+                decoded += String.fromCharCode(encoded.charCodeAt(i) ^ 42);
+            }
+            return `"${decoded.replace(/"/g, '\\"')}"`;
+        }
+
         function copyCode() {
             const output = document.getElementById('output').textContent;
-            if (output && output !== 'Deobfuscated code will appear here...') {
+            if (output && output !== 'Deobfuscated code will appear here...' && output !== 'Coming soon') {
                 navigator.clipboard.writeText(output).then(() => {
                     alert('Code copied to clipboard!');
                 }).catch(err => {
