@@ -1,422 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Advanced Luau Deobfuscator</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ultimate Luau Deobfuscator</title>
 <style>
-body{background:linear-gradient(135deg,#1e1e2f,#2a2a4e);color:#fff;font-family:Arial, sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
-.container{width:820px;max-width:96%;background:rgba(0,0,0,0.73);padding:18px;border-radius:12px;box-shadow:0 8px 40px rgba(0,255,255,0.06)}
-textarea{width:100%;height:180px;background:#2e2e4e;border:1px solid #00ffff;border-radius:8px;color:#fff;padding:10px;font-family:Courier,monospace;resize:vertical;box-sizing:border-box}
-button{padding:10px 14px;border-radius:6px;border:0;background:linear-gradient(45deg,#00ffff,#ff00ff);color:#fff;cursor:pointer;margin:6px}
-#output{background:#111224;border:1px solid #ff00ff;border-radius:8px;padding:12px;color:#e6f7ff;white-space:pre-wrap;font-family:Courier,monospace;max-height:420px;overflow:auto}
-.meta{color:#00ffff;margin-bottom:8px}
-.controls{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-.small{font-size:0.85rem;color:#ddd}
+body{background:#111;color:#eee;font-family:Consolas,monospace;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.container{width:880px;max-width:95%;background:#1a1a1a;border-radius:12px;padding:20px;box-shadow:0 0 20px #0ff}
+textarea{width:100%;height:200px;background:#222;color:#0f0;border:1px solid #0ff;border-radius:6px;padding:8px;resize:vertical}
+button{background:linear-gradient(45deg,#0ff,#f0f);border:0;border-radius:6px;padding:8px 14px;color:#fff;cursor:pointer}
+button:hover{opacity:.85}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+#output{white-space:pre-wrap;background:#000;color:#0f0;border:1px solid #f0f;border-radius:6px;padding:10px;max-height:420px;overflow:auto}
+label{color:#ccc;font-size:.9em}
+.status{margin:6px 0;font-size:.9em;color:#0ff}
 </style>
 </head>
 <body>
 <div class="container">
-  <h2>Advanced Luau Deobfuscator — Aggressive Mode</h2>
-  <div class="meta small">Paste obfuscated Luau below, then press <strong>Deep Deobfuscate</strong>. Iterative, aggressive, tries everything.</div>
-  <textarea id="inputCode" placeholder="Paste your obfuscated Luau here..."></textarea>
-
+  <h2>⚡ Ultimate Luau Deobfuscator</h2>
+  <textarea id="inputCode" placeholder="Paste obfuscated Luau here..."></textarea>
   <div class="controls">
-    <button onclick="deepDeobfuscate()">Deep Deobfuscate</button>
-    <button onclick="quickPass()">Quick Pass</button>
-    <button onclick="stripJunkOnly()">Strip Junk Only</button>
-    <button onclick="copyOutput()">Copy Output</button>
-    <label class="small" style="margin-left:auto"><input type="checkbox" id="beautify" checked> Beautify</label>
-    <label class="small"><input type="checkbox" id="xorBrute" checked> XOR brute 1–255</label>
+    <button onclick="runDeep()">Full Deep Clean</button>
+    <button onclick="quick()">Quick Pass</button>
+    <button onclick="stripJunk()">Strip Junk</button>
+    <button onclick="copyOut()">Copy Output</button>
+    <label><input type="checkbox" id="beautify" checked> Beautify</label>
+    <label><input type="checkbox" id="xorBrute" checked> XOR brute</label>
   </div>
-
-  <div id="status" class="small">Status: idle</div>
-  <div id="output" aria-live="polite">Deobfuscated output appears here...</div>
+  <div id="status" class="status">Idle</div>
+  <div id="output">Deobfuscated output appears here...</div>
 </div>
 
 <script>
-/* ---------- Helpers ---------- */
-function isPrintableAscii(s){
-  if(typeof s !== 'string') return false;
-  for(let i=0;i<s.length;i++){
-    const c=s.charCodeAt(i);
-    if(c===0) return false;
-    if(c>127) return false; // keep to ASCII & common symbols
+/* ============ Utility Helpers ============ */
+function logStatus(msg){document.getElementById('status').textContent=msg;}
+function out(txt){const o=document.getElementById('output');o.textContent=txt;o.scrollTop=o.scrollHeight;}
+function unq(s){return s.replace(/^['"]|['"]$/g,'');}
+function looksB64(s){return /^[A-Za-z0-9+/=]+$/.test(s)&&s.length%4===0;}
+function safeAtob(s){try{return atob(s);}catch(e){return null;}}
+function hex2txt(h){try{return h.replace(/../g,c=>String.fromCharCode(parseInt(c,16)));}catch(e){return null;}}
+function rot13(s){return s.replace(/[a-zA-Z]/g,c=>String.fromCharCode((c<="Z"?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));}
+function isAscii(s){return /^[\x09\x0A\x0D\x20-\x7E]*$/.test(s);}
+
+/* ============ Core Passes ============ */
+function decodeChars(c){return c.replace(/string\.char\(([\d,\s]+)\)/g,(m,nums)=>{try{return `"${nums.split(',').map(x=>String.fromCharCode(+x)).join('')}"`;}catch(e){return m;}});}
+function concatLits(c){return c.replace(/(".*?")\s*\.\.\s*(".*?")/g,(m,a,b)=>`"${unq(a)+unq(b)}"`);}
+function base64Lits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(looksB64(s)){const d=safeAtob(s);if(d&&isAscii(d))return `"${d}"`;}return m;});}
+function hexLits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(/^[0-9a-fA-F]+$/.test(s)&&s.length>4){const d=hex2txt(s);if(d&&isAscii(d))return `"${d}"`;}return m;});}
+function urlLits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(/%[0-9A-Fa-f]{2}/.test(s)){try{const d=decodeURIComponent(s);if(isAscii(d))return `"${d}"`;}catch(e){};}return m;});}
+function rot13Lits(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(/[A-Za-z]{6}/.test(s)){const d=rot13(s);if(isAscii(d)&&/local|function|game/.test(d))return `"${d}"`;}return m;});}
+function xorBrute(c){return c.replace(/(".*?")/g,(m)=>{const s=unq(m);if(s.length<4) return m;for(let k=1;k<256;k++){let d="";for(let i=0;i<s.length;i++)d+=String.fromCharCode(s.charCodeAt(i)^k);if(isAscii(d)&&(/local|function|Players|game/.test(d)||looksB64(d))){return `"${d}"`;}}return m;});}
+function stripJunkPass(c){return c
+ .replace(/if\s+_[A-Za-z0-9]+\s*==\s*math\.random\([^)]+\)\s*then[\s\S]*?end/g,'')
+ .replace(/local\s+_[A-Za-z0-9]+\s*=\s*[^;]+;?/g,'')
+ .replace(/function\s+_[A-Za-z0-9]+\([^)]*\)\s*end/g,'-- removed junk function');}
+function normalizeIds(c){let idx=1;return c.replace(/\b_[A-Za-z0-9]{8,}\b/g,()=>`v${idx++}`);}
+
+/* Beautify */
+function beautify(c){let ind=0,out=[];for(let l of c.split(/\n/)){l=l.trim();if(/^end|^else|^elseif|^until/.test(l))ind--;out.push("  ".repeat(Math.max(0,ind))+l);if(/\bthen$|\bdo$|\bfunction\b|\brepeat\b/.test(l))ind++;}return out.join("\n");}
+
+/* ============ Orchestrator ============ */
+async function runDeep(){
+  let code=document.getElementById('inputCode').value;if(!code){alert('Paste code first');return;}
+  let iter=0,changed=true;
+  while(changed&&iter<20){
+    changed=false;iter++;
+    const before=code;
+    code=decodeChars(code);
+    code=concatLits(code);
+    code=base64Lits(code);
+    code=hexLits(code);
+    code=urlLits(code);
+    code=rot13Lits(code);
+    if(document.getElementById('xorBrute').checked) code=xorBrute(code);
+    code=stripJunkPass(code);
+    code=normalizeIds(code);
+    if(code!==before)changed=true;
+    logStatus(`Pass ${iter} done, ${changed?"changes":"no changes"}`);
+    await new Promise(r=>setTimeout(r,30));
   }
-  return true;
+  if(document.getElementById('beautify').checked) code=beautify(code);
+  out(code);
+  logStatus(`Finished in ${iter} passes`);
 }
-function looksLikeBase64(s){
-  if(typeof s!=='string') return false;
-  s = s.replace(/\\s+/g,'');
-  if(s.length%4!==0) return false;
-  return /^[A-Za-z0-9+/=]+$/.test(s);
-}
-function safeAtob(s){
-  try{
-    return decodeURIComponent(escape(window.atob(s)));
-  }catch(e){
-    try{return window.atob(s);}catch(e2){return null;}
-  }
-}
-function hexToText(hex){
-  try{
-    hex = hex.replace(/[^0-9a-fA-F]/g,'');
-    if(hex.length%2!==0) return null;
-    let out='';
-    for(let i=0;i<hex.length;i+=2) out+=String.fromCharCode(parseInt(hex.substr(i,2),16));
-    return out;
-  }catch(e){return null;}
-}
-function tryRot13(s){
-  return s.replace(/[A-Za-z]/g,function(c){
-    const a = c<='Z'?'A':'a';
-    return String.fromCharCode((c.charCodeAt(0)-a.charCodeAt(0)+13)%26 + a.charCodeAt(0));
-  });
-}
-function urlDecode(s){
-  try{return decodeURIComponent(s);}catch(e){return null;}
-}
-function unquote(s){
-  if(s.length>=2 && (s[0]==='"' || s[0]==="'") && s[s.length-1]===s[0]) return s.slice(1,-1);
-  return s;
-}
-function escapeForLua(s,quote){
-  quote = quote||'"';
-  return quote + s.replace(new RegExp(quote,'g'),'\\'+quote) + quote;
-}
-
-/* ---------- Literal decoders ---------- */
-
-function decodeStringCharCalls(code){
-  // string.char(65,66,67) => "ABC"
-  return code.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/g, function(m, nums){
-    const arr = nums.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n) && n>=0 && n<=255);
-    if(arr.length===0) return m;
-    const str = arr.map(n=>String.fromCharCode(n)).join('');
-    if(!isPrintableAscii(str)) return m;
-    return escapeForLua(str,'"');
-  });
-}
-
-function collapseConcats(code){
-  // "a".."b" => "ab"
-  return code.replace(/("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')\s*\.{2}\s*("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')/g, function(m, a){
-    // greedily collapse chain of concatenations
-    try{
-      // extract all quoted pieces in the matched region
-      const pieces = m.match(/("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')/g);
-      if(!pieces) return m;
-      let combined = '';
-      for(const p of pieces){
-        combined += unquote(p).replace(/\\n/g,'\n').replace(/\\r/g,'\r');
-      }
-      if(!isPrintableAscii(combined)) return m;
-      return escapeForLua(combined,'"');
-    }catch(e){return m;}
-  });
-}
-
-/* ---------- Encoders attempters ---------- */
-
-function tryBase64DecodeOnLiterals(code){
-  let changed=false;
-  code = code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, function(token){
-    const q = token[0], inner = unquote(token);
-    if(!looksLikeBase64(inner)) return token;
-    const dec = safeAtob(inner);
-    if(!dec || !isPrintableAscii(dec)) return token;
-    changed=true;
-    return escapeForLua(dec,q);
-  });
-  return {code,changed};
-}
-
-function tryHexDecodeOnLiterals(code){
-  let changed=false;
-  code = code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, function(token){
-    const q=token[0], inner=unquote(token);
-    // if token is hex-like (only hex chars, length even and > 6)
-    if(!/^[0-9a-fA-F]+$/.test(inner) || inner.length<6 || inner.length%2!==0) return token;
-    const dec = hexToText(inner);
-    if(!dec || !isPrintableAscii(dec)) return token;
-    changed=true;
-    return escapeForLua(dec,q);
-  });
-  return {code,changed};
-}
-
-function tryUrlDecodeOnLiterals(code){
-  let changed=false;
-  code = code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, function(token){
-    const q=token[0], inner=unquote(token);
-    if(!/%[0-9A-Fa-f]{2}/.test(inner)) return token;
-    const dec = urlDecode(inner);
-    if(!dec || !isPrintableAscii(dec)) return token;
-    changed=true;
-    return escapeForLua(dec,q);
-  });
-  return {code,changed};
-}
-
-function tryRot13OnLiterals(code){
-  let changed=false;
-  code = code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, function(token){
-    const q=token[0], inner=unquote(token);
-    // rot13 only makes sense for alphabetic heavy strings
-    const letters = (inner.match(/[A-Za-z]/g)||[]).length;
-    if(letters < 6) return token;
-    const dec = tryRot13(inner);
-    if(!dec || !isPrintableAscii(dec)) return token;
-    // require some Lua keywords to appear after rot13 to accept it
-    if(/local|function|print|game|Players/.test(dec)) { changed=true; return escapeForLua(dec,q); }
-    // otherwise allow if it becomes human readable
-    if(/[a-zA-Z]{3,}/.test(dec)) { changed=true; return escapeForLua(dec,q); }
-    return token;
-  });
-  return {code,changed};
-}
-
-/* ---------- XOR brute force for string literals ---------- */
-
-function bruteForceXorLiterals(code, maxKey=255){
-  let changed=false;
-  code = code.replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, function(token){
-    const q=token[0], inner=unquote(token);
-    // skip obvious readable things
-    if(looksLikeBase64(inner) || inner.length<4) return token;
-    // try keys 1..maxKey but prefer keys that produce Lua keywords
-    for(let k=1;k<=maxKey;k++){
-      let out='';
-      for(let i=0;i<inner.length;i++) out+=String.fromCharCode(inner.charCodeAt(i)^k);
-      if(!isPrintableAscii(out)) continue;
-      if(/local|function|print|game|Players|require|workspace/.test(out)){
-        changed=true; return escapeForLua(out,q);
-      }
-      if(looksLikeBase64(out)){ changed=true; return escapeForLua(out,q); }
-      // accept moderate human-readable ascii (letters and spaces)
-      if(/[a-zA-Z]{6,}/.test(out) && out.split(/\s+/).length>1){ changed=true; return escapeForLua(out,q); }
-    }
-    return token;
-  });
-  return {code,changed};
-}
-
-/* ---------- Replace common wrapper calls like b64decode(xorDecode("..")) ---------- */
-
-function unwrapCommonCallWrappers(code){
-  // collapse b64decode("...") => "decoded" if possible (also handles nested by repeating)
-  let totalChanged=false;
-  // first replace explicit b64decode(...) pattern with literal when possible
-  const b64Call = /b64decode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*\)/g;
-  code = code.replace(b64Call, function(m, p1){
-    const inner = unquote(p1);
-    if(!looksLikeBase64(inner)) return m;
-    const dec = safeAtob(inner);
-    if(!dec || !isPrintableAscii(dec)) return m;
-    totalChanged = true;
-    return escapeForLua(dec, p1[0]);
-  });
-
-  // handle xorDecode("...",N) numeric key
-  const xorCall = /xorDecode\s*\(\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*')\s*,\s*(\d{1,3})\s*\)/g;
-  code = code.replace(xorCall, function(m, p1, p2, p3, keyStr){
-    const inner = unquote(p1), key = parseInt(keyStr,10);
-    let out='';
-    for(let i=0;i<inner.length;i++) out+=String.fromCharCode(inner.charCodeAt(i)^key);
-    if(!isPrintableAscii(out)) return m;
-    totalChanged = true;
-    return escapeForLua(out, p1[0]);
-  });
-
-  return {code,changed: totalChanged};
-}
-
-/* ---------- Junk removal & control-flow collapse ---------- */
-
-function removeJunkPatterns(code){
-  let changed=false;
-  const before = code;
-
-  // 1) remove random-if math.random blocks: if _xxx == math.random(1,100) then ... end
-  code = code.replace(/if\s+_[A-Za-z0-9]{5,}\s*==\s*math\.random\s*\([^\)]*\)\s*then[\s\S]*?end/g, function(){ changed=true; return ''; });
-
-  // 2) remove sequences of local _random = math.* or local _r = b64decode("...") repeated many times (heuristic)
-  code = code.replace(/(?:\n|\r|\r\n)\s*local\s+_[A-Za-z0-9]{5,}\s*=\s*(?:math\.[a-zA-Z_]+\([^)]*\)|b64decode\s*\([^)]*\)|xorDecode\s*\([^)]*\)|[A-Za-z0-9_]+\([^)]*\))[^\n]*(\n|\r\n?){6,}/g, function(){ changed=true; return '\n'; });
-
-  // 3) remove single-line obvious junk locals repeated
-  code = code.replace(/(?:\n|\r\n)\s*(local\s+_[A-Za-z0-9]{5,}\s*=[^\n]+\n){8,}/g, function(){ changed=true; return '\n'; });
-
-  // 4) remove extremely long identifier-only lines (no-op)
-  code = code.replace(/^\s*_[A-Za-z0-9]{10,}\s*=\s*_[A-Za-z0-9]{10,}\s*$/gm, function(){ changed=true; return ''; });
-
-  if(changed) return {code,changed:true};
-  return {code,changed:false};
-}
-
-/* ---------- Identifier normalization (map random long names to v1,f1...) ---------- */
-
-function normalizeIdentifiers(code){
-  // collect candidate names that are long/random: starting with _ or long camelCase gibberish >8 chars
-  const keywords = new Set(['local','function','end','if','then','else','elseif','for','do','while','repeat','until','return','break','and','or','not','true','false','nil','print','game','Players','workspace','wait','require','spawn']);
-  const idRegex = /[A-Za-z_][A-Za-z0-9_]*/g;
-  const names = {};
-  let match;
-  while((match = idRegex.exec(code)) !== null){
-    const name = match[0];
-    if(keywords.has(name)) continue;
-    if(name.length>=10 || /^_[A-Za-z0-9]{6,}$/.test(name) || /[A-Z]{3,}/.test(name)){
-      names[name] = (names[name] || 0) + 1;
-    }
-  }
-  // sort by occurrences (desc) so commonly-used long names get simpler mappings
-  const entries = Object.entries(names).sort((a,b)=>b[1]-a[1]);
-  if(entries.length===0) return {code,changed:false};
-  let changed=false;
-  const map = {};
-  let vCount=1, fCount=1;
-  for(const [name,count] of entries){
-    // choose prefix f for names that appear in "function <name>" or followed by '(' a lot
-    // simple heuristic: check occurrences of "function <name>" or "<name>("
-    const funcPattern = new RegExp('\\bfunction\\s+'+name+'\\b');
-    const callPattern = new RegExp('\\b'+name+'\\s*\\(');
-    if(funcPattern.test(code) || callPattern.test(code) && count>2){
-      map[name] = 'f' + (fCount++);
-    } else {
-      map[name] = 'v' + (vCount++);
-    }
-  }
-  // replace whole-word occurrences
-  const sortedNames = Object.keys(map).sort((a,b)=>b.length-a.length);
-  for(const orig of sortedNames){
-    const safeOrig = orig.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&');
-    const re = new RegExp('\\b'+safeOrig+'\\b','g');
-    code = code.replace(re, map[orig]);
-    changed=true;
-  }
-  return {code,changed};
-}
-
-/* ---------- Beautify (simple indentation) ---------- */
-
-function simpleBeautify(code){
-  // normalize line endings and add indentation for basic blocks
-  const lines = code.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
-  let indent=0;
-  const out=[];
-  for(let rawLine of lines){
-    let line = rawLine.trim();
-    if(line==='') { out.push(''); continue; }
-    // decrease indent for end/until/else/elseif
-    if(/^\b(end|until|elseif|else)\b/.test(line)) indent = Math.max(0, indent-1);
-    out.push('  '.repeat(indent) + line);
-    // increase indent for then/do/function/repeat
-    if(/\b(then|do|function|repeat)\b/.test(line)) indent++;
-  }
-  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
-}
-
-/* ---------- Orchestrator ---------- */
-
-async function deepDeobfuscate(){
-  const orig = document.getElementById('inputCode').value || '';
-  if(!orig){ alert('Paste code first'); return; }
-  const doBeautify = document.getElementById('beautify').checked;
-  const doXor = document.getElementById('xorBrute').checked;
-  document.getElementById('status').textContent = 'Status: Running deep deobfuscation... (this may take a moment)';
-  let code = orig;
-  let iteration=0, changedAny=false;
-  const maxIter = 20;
-  while(iteration++ < maxIter){
-    let roundChanged=false;
-
-    // 1) decode string.char(...) to literals
-    let r = decodeStringCharCalls(code); code = r; // returns string
-
-    // 2) collapse concatenations
-    const c1 = collapseConcats(code); if(c1!==code){ code=c1; roundChanged=true; }
-
-    // 3) unwrap wrapper calls (b64/xor patterns)
-    const u1 = unwrapCommonCallWrappers(code); code = u1.code; if(u1.changed){ roundChanged=true; }
-
-    // 4) try base64->literal on any literal
-    const b1 = tryBase64DecodeOnLiterals(code); code = b1.code; if(b1.changed) roundChanged=true;
-
-    // 5) try hex decode
-    const h1 = tryHexDecodeOnLiterals(code); code = h1.code; if(h1.changed) roundChanged=true;
-
-    // 6) try url-decode
-    const u2 = tryUrlDecodeOnLiterals(code); code = u2.code; if(u2.changed) roundChanged=true;
-
-    // 7) try rot13
-    const r13 = tryRot13OnLiterals(code); code = r13.code; if(r13.changed) roundChanged=true;
-
-    // 8) try XOR brute on literals if enabled
-    if(doXor){
-      const x1 = bruteForceXorLiterals(code, 255);
-      code = x1.code; if(x1.changed) roundChanged=true;
-    }
-
-    // 9) replace string.char again (in case decodings produced them)
-    code = decodeStringCharCalls(code);
-
-    // 10) remove junk blocks aggressively
-    const j1 = removeJunkPatterns(code); code = j1.code; if(j1.changed) roundChanged=true;
-
-    // 11) normalize identifiers so repeated random names become readable
-    const n1 = normalizeIdentifiers(code); code = n1.code; if(n1.changed) roundChanged=true;
-
-    // 12) small pass to unwrap more wrapper calls now that literals changed
-    const u3 = unwrapCommonCallWrappers(code); code = u3.code; if(u3.changed) roundChanged=true;
-
-    if(!roundChanged) break;
-    changedAny = changedAny || roundChanged;
-
-    // update quick progress so user knows it's working
-    document.getElementById('status').textContent = 'Status: Iteration ' + iteration + (roundChanged ? ' — changes applied' : ' — no change');
-    // allow UI breath
-    await new Promise(r=>setTimeout(r,10));
-  }
-
-  if(doBeautify) code = simpleBeautify(code);
-
-  document.getElementById('output').textContent = code || '-- no output --';
-  document.getElementById('status').textContent = 'Status: Finished — iterations: ' + iteration + (changedAny ? ' (changes made)' : ' (no changes)');
-}
-
-/* ---------- Quick utilities ---------- */
-
-function quickPass(){
-  const orig = document.getElementById('inputCode').value || '';
-  if(!orig){ alert('Paste code first'); return; }
-  // single-pass quick path
-  let code = orig;
-  code = decodeStringCharCalls(code);
-  code = collapseConcats(code);
-  code = unwrapCommonCallWrappers(code).code;
-  code = tryBase64DecodeOnLiterals(code).code;
-  code = bruteForceXorLiterals(code, 64).code; // quick xor up to 64
-  code = removeJunkPatterns(code).code;
-  if(document.getElementById('beautify').checked) code = simpleBeautify(code);
-  document.getElementById('output').textContent = code || '-- no output --';
-  document.getElementById('status').textContent = 'Status: Quick pass complete';
-}
-
-function stripJunkOnly(){
-  const orig = document.getElementById('inputCode').value || '';
-  if(!orig){ alert('Paste code first'); return; }
-  let code = orig;
-  code = removeJunkPatterns(code).code;
-  if(document.getElementById('beautify').checked) code = simpleBeautify(code);
-  document.getElementById('output').textContent = code || '-- no output --';
-  document.getElementById('status').textContent = 'Status: Junk stripped';
-}
-
-function copyOutput(){
-  const out = document.getElementById('output').textContent || '';
-  if(!out){ alert('Nothing to copy'); return; }
-  navigator.clipboard.writeText(out).then(()=>alert('Copied to clipboard'), e=>alert('Copy failed: '+e));
-}
-
+function quick(){let c=document.getElementById('inputCode').value;c=decodeChars(concatLits(base64Lits(c)));out(c);logStatus("Quick pass done");}
+function stripJunk(){let c=document.getElementById('inputCode').value;c=stripJunkPass(c);out(c);logStatus("Junk stripped");}
+function copyOut(){navigator.clipboard.writeText(document.getElementById('output').textContent);}
 </script>
 </body>
 </html>
