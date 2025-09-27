@@ -114,6 +114,8 @@
             <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
             <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
             <label><input type="checkbox" id="over5kb"> Over 5KB Size</label>
+            <label><input type="checkbox" id="numObf"> Number Obfuscation</label>
+            <label><input type="checkbox" id="strSplit"> String Splitting</label>
         </div>
         <div class="buttons">
             <button onclick="obfuscate('base64')">Base64 Strings</button>
@@ -151,13 +153,16 @@ local function b64decode(str)
     end
     local r = {}
     for i = 1, #t, 4 do
-        local v1, v2, v3, v4 = t[i], t[i+1], t[i+2], t[i+3]
+        local v1 = t[i] or 0
+        local v2 = t[i+1] or 0
+        local v3 = t[i+2] or 0
+        local v4 = t[i+3] or 0
         local a = bit32.rshift(v1 * 4 + bit32.rshift(v2, 4), 0)
-        local b = bit32.rshift(bit32.band(v2, 15) * 16 + bit32.rshift(v3 or 0, 2), 0)
-        local c = bit32.rshift(bit32.band(v3 or 0, 3) * 64 + (v4 or 0), 0)
+        local b = bit32.rshift(bit32.band(v2, 15) * 16 + bit32.rshift(v3, 2), 0)
+        local c = bit32.rshift(bit32.band(v3, 3) * 64 + v4, 0)
         table.insert(r, string.char(a))
-        if v3 then table.insert(r, string.char(b)) end
-        if v4 then table.insert(r, string.char(c)) end
+        if t[i+2] then table.insert(r, string.char(b)) end
+        if t[i+3] then table.insert(r, string.char(c)) end
     end
     return table.concat(r)
 end
@@ -174,27 +179,32 @@ local function xorDecode(str, key)
 end
 `;
 
-        const antiTamperFn = `
-local function checkTamper()
-    -- Dummy check that always passes for testing; replace with real logic
-    if false then
+        const antiTamperTemplate = `
+local function checkTamper(src, expectedSum)
+    local sum = 0
+    for i = 1, #src do
+        sum = sum + string.byte(src, i) * (i % 17 + 1)
+    end
+    if sum ~= expectedSum then
         error("Script tampered!")
     end
 end
-checkTamper()
+local code = [[%s]]
+checkTamper(code, %d)
+loadstring(code)()
 `;
 
         const protection247Fn = `
 spawn(function()
     while true do
-        wait(10) -- Increased wait time to reduce performance impact
+        wait(10)
     end
 end)
 `;
 
         const services = [
             "AdService", "AnalyticsService", "AssetService", "BadgeService", "ChangeHistoryService",
-            "Chat", "CollectionService", "ContentProvider", "ContextActionService", "CookiesService",
+            "Chat", "CollectionService", "ContentProvider", "ContextActionService",
             "CoreGui", "Debris", "DebuggerManager", "DraftsService", "DraggerService",
             "FilteredSelection", "FriendService", "GamePassService", "GamepadService", "Geometry",
             "GroupService", "GuiService", "HSRDataContentProvider", "HapticService", "HttpRbxApiService",
@@ -215,6 +225,14 @@ end)
                 .replace(/--[^\n]*/g, '');
         }
 
+        function computeChecksum(code) {
+            let sum = 0;
+            for (let i = 0; i < code.length; i++) {
+                sum += code.charCodeAt(i) * ((i % 17) + 1);
+            }
+            return sum;
+        }
+
         function obfuscate(type) {
             let code = document.getElementById('inputCode').value || defaultCode;
             let output = '';
@@ -222,6 +240,8 @@ end)
             const maxProtection = document.getElementById('maxProtection').checked;
             const protection247 = document.getElementById('24Protection').checked;
             const over5kb = document.getElementById('over5kb').checked;
+            const numObf = document.getElementById('numObf').checked;
+            const strSplit = document.getElementById('strSplit').checked;
 
             let temp = code;
             let outputType = '';
@@ -236,19 +256,18 @@ end)
                 'bit32', 'coroutine', 'debug', 'Enum', 'Instance', 'UDim', 'UDim2', 'Vector2',
                 'Vector3', 'CFrame', 'Color3', 'BrickColor', 'Ray', 'Region3', 'Region3int16',
                 'Vector3int16', 'Vector2int16', 'task', 'wait', 'spawn', 'delay', 'Players',
-                'LocalPlayer', 'Name', 'b64decode', 'xorDecode' // Add decode functions to protect them
+                'LocalPlayer', 'Name', 'b64decode', 'xorDecode', 'checkTamper', 'loadstring'
             ]);
 
-            if (type === 'base64') {
+            if (type === 'base64' || type === 'max') {
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    return `b64decode("${btoa(str)}")`;
+                    return `b64decode("${btoa(unescape(encodeURIComponent(str)))}")`;
                 });
-                output += base64DecodeFn;
-                outputType = 'Base64 Strings';
+                outputType = type === 'base64' ? 'Base64 Strings' : outputType;
             }
 
-            if (type === 'xor') {
-                const key = Math.floor(Math.random() * 256); // Randomize XOR key for better obfuscation
+            if (type === 'xor' || type === 'max') {
+                const key = Math.floor(Math.random() * 256);
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
                     let encrypted = '';
                     for (let i = 0; i < str.length; i++) {
@@ -256,11 +275,10 @@ end)
                     }
                     return `xorDecode("${encrypted.replace(/"/g, '\\"')}", ${key})`;
                 });
-                output += xorDecodeFn.replace(/key/g, 'key'); // Already uses key
-                outputType = 'XOR Strings';
+                outputType = type === 'xor' ? 'XOR Strings' : outputType;
             }
 
-            if (type === 'rename') {
+            if (type === 'rename' || type === 'max') {
                 let identifierMap = new Map();
                 temp = temp.replace(/\b(\w+)\b/g, (match, id) => {
                     if (protectedIdentifiers.has(id)) return id;
@@ -269,117 +287,113 @@ end)
                     }
                     return identifierMap.get(id);
                 });
-                outputType = 'Variable Renaming';
+                outputType = type === 'rename' ? 'Variable Renaming' : outputType;
             }
 
-            if (type === 'control') {
+            if (type === 'control' || type === 'max') {
                 const junkCode = `
 if math.random(1, 100) > 50 then
     local ${randomString(12)} = math.sin(math.pi / ${Math.floor(Math.random() * 10 + 1)});
     local ${randomString(12)} = math.cos(math.random() * 2 * math.pi);
     local ${randomString(12)} = bit32.bxor(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
+    local ${randomString(12)} = math.abs(math.random() - math.random());
 else
     local ${randomString(12)} = math.tan(math.random());
     local ${randomString(12)} = bit32.band(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
     local ${randomString(12)} = math.floor(math.random() * 100);
+    local ${randomString(12)} = math.ceil(math.random() * 100);
 end
 `;
                 const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode.repeat(2)) + '\n' + junkCode.repeat(2); // More junk for better obfuscation
-                outputType = 'Control Flow';
+                temp = lines.join('\n' + junkCode.repeat(4)) + '\n' + junkCode.repeat(4);
+                outputType = type === 'control' ? 'Control Flow' : outputType;
             }
 
             if (type === 'max') {
-                // Apply all obfuscations sequentially
-                // 1. Variable Renaming (enhanced)
-                let identifierMap = new Map();
-                temp = temp.replace(/\b(\w+)\b/g, (match, id) => {
-                    if (protectedIdentifiers.has(id)) return id;
-                    if (!identifierMap.has(id)) {
-                        identifierMap.set(id, randomString(20));
-                    }
-                    return identifierMap.get(id);
-                });
-
-                // 2. Control Flow (enhanced with more junk)
-                const junkCode = `
-if math.random(1, 100) > 50 then
-    local ${randomString(12)} = math.sin(math.pi / ${Math.floor(Math.random() * 10 + 1)});
-    local ${randomString(12)} = math.cos(math.random() * 2 * math.pi);
-    local ${randomString(12)} = bit32.bxor(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
-else
-    local ${randomString(12)} = math.tan(math.random());
-    local ${randomString(12)} = bit32.band(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
-    local ${randomString(12)} = math.floor(math.random() * 100);
-end
-`;
-                const lines = temp.split('\n');
-                temp = lines.join('\n' + junkCode.repeat(3)) + '\n' + junkCode.repeat(3); // Even more for better obf
-
-                // 3. String obfuscation: Base64 and XOR mixed with random key
+                // Mixed string obfuscation for max
                 const key = Math.floor(Math.random() * 256);
-                let stringCount = 0;
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    stringCount++;
-                    let encoded = btoa(str);
+                    const encoded = btoa(unescape(encodeURIComponent(str)));
                     let encrypted = '';
                     for (let i = 0; i < encoded.length; i++) {
                         encrypted += String.fromCharCode(encoded.charCodeAt(i) ^ key);
                     }
                     return `b64decode(xorDecode("${encrypted.replace(/"/g, '\\"')}", ${key}))`;
                 });
-
-                output += base64DecodeFn + xorDecodeFn;
                 outputType = 'Obfuscate Using Everything';
+            }
 
-                // Additional: Obfuscate numbers for better protection
+            // Apply number obfuscation if toggled or max
+            if (numObf || type === 'max') {
                 temp = temp.replace(/\b(\d+)\b/g, (match, num) => {
+                    num = parseInt(num);
                     const ops = ['+', '-', '*', '/'];
                     const op = ops[Math.floor(Math.random() * ops.length)];
-                    const a = Math.floor(Math.random() * num + 1);
-                    const b = num - a;
+                    let a = Math.floor(Math.random() * (num || 1) + 1) || 1;
+                    let b = num - a;
                     if (op === '+') return `(${a} + ${b})`;
                     if (op === '-') return `(${a + num} - ${a})`;
-                    if (op === '*') return num > 1 ? `(${num} * 1)` : num;
-                    if (op === '/') return num > 1 ? `(${num} / 1)` : num;
+                    if (op === '*') return num > 1 ? `(${Math.floor(num / 2)} * ${2})` : num;
+                    if (op === '/') return num > 1 ? `(${num * 2} / ${2})` : num;
                     return num;
                 });
             }
 
-            if (antiTamper) {
-                temp = antiTamperFn + temp;
-            }
-
-            if (protection247) {
-                temp = protection247Fn + temp;
-            }
-
-            if (maxProtection) {
-                // Enhanced layering: add multiple b64 and xor layers
-                temp = temp.replace(/b64decode\(xorDecode\("([^"]*)"\, (\d+)\)\)/g, (match, encoded, key) => {
-                    let doubleEncoded = btoa(atob(encoded)); // Extra b64
-                    let reEncrypted = '';
-                    for (let i = 0; i < doubleEncoded.length; i++) {
-                        reEncrypted += String.fromCharCode(doubleEncoded.charCodeAt(i) ^ (key % 128 + 1)); // Vary key
-                    }
-                    return `b64decode(xorDecode(b64decode(xorDecode("${reEncrypted}", ${key % 128 + 1})), ${key}))`;
+            // Apply string splitting if toggled or max
+            if (strSplit || type === 'max') {
+                temp = temp.replace(/"([^"]{5,})"/g, (match, str) => {
+                    const parts = str.match(/.{1,3}/g);
+                    return parts.map(p => `"${p.replace(/"/g, '\\"')}"`).join(' .. ');
                 });
             }
 
+            if (maxProtection) {
+                // Add more layers
+                temp = temp.replace(/b64decode\((xorDecode\("([^"]*)"\, (\d+)\))\)/g, (match, inner, encoded, key) => {
+                    const doubleInner = btoa(atob(encoded));
+                    let reEncrypted = '';
+                    for (let i = 0; i < doubleInner.length; i++) {
+                        reEncrypted += String.fromCharCode(doubleInner.charCodeAt(i) ^ (parseInt(key) % 128 + 1));
+                    }
+                    return `b64decode(xorDecode(b64decode(xorDecode("${reEncrypted.replace(/"/g, '\\"')}", ${parseInt(key) % 128 + 1})), ${key}))`;
+                });
+            }
+
+            // Build finalCode for anti-tamper and other additions
+            let finalCode = temp;
+
+            if (type === 'base64' || type === 'max') {
+                finalCode = base64DecodeFn + finalCode;
+            }
+            if (type === 'xor' || type === 'max') {
+                finalCode = xorDecodeFn + finalCode;
+            }
+            if (protection247) {
+                finalCode = protection247Fn + finalCode;
+            }
             if (over5kb) {
                 let junk = '';
-                const targetSize = 5120 * 2; // Make it well over 5KB
+                const targetSize = 5120 * 2;
                 while (junk.length < targetSize) {
                     for (let service of services) {
-                        let varname = randomString(100); // Long random variable names
+                        let varname = randomString(100);
                         junk += `local ${varname} = game:GetService("${service}")\n`;
                         if (junk.length >= targetSize) break;
                     }
                 }
-                temp = junk + temp + junk;
+                finalCode = junk + finalCode + junk;
             }
 
-            output += temp;
+            if (antiTamper) {
+                const checksum = computeChecksum(finalCode);
+                const escapedCode = finalCode.replace(/]]/g, ']] .. "]]"');
+                const tamperCode = antiTamperTemplate.replace('%s', escapedCode).replace('%d', checksum);
+                temp = tamperCode;
+            } else {
+                temp = finalCode;
+            }
+
+            output = temp;
 
             output = removeComments(output);
 
@@ -411,7 +425,7 @@ end
 
         function btoa(str) {
             try {
-                return btoa(unescape(encodeURIComponent(str)));
+                return window.btoa(unescape(encodeURIComponent(str)));
             } catch (e) {
                 console.error('Base64 encoding failed:', e);
                 return str;
