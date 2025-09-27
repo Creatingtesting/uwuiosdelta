@@ -144,13 +144,13 @@ for i = 1, 5 do
 end`;
 
         const base64DecodeFn = `
-local function b64decode(str)
-    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+local function b64decode(str, tbl)
+    local r = {}
     local t = {}
     for i = 1, #str do
         local c = string.sub(str, i, i)
         if c ~= '=' then
-            local v = string.find(b, c)
+            local v = string.find(tbl, c)
             if v then
                 table.insert(t, v - 1)
             else
@@ -158,7 +158,6 @@ local function b64decode(str)
             end
         end
     end
-    local r = {}
     for i = 1, #t, 4 do
         local v1 = t[i] or 0
         local v2 = t[i+1] or 0
@@ -176,10 +175,12 @@ end
 `;
 
         const xorDecodeFn = `
-local function xorDecode(str, key)
+local function xorDecode(str, keys)
     local result = {}
+    local keyLen = #keys
     for i = 1, #str do
         local char = string.byte(str, i)
+        local key = keys[((i-1) % keyLen) + 1]
         table.insert(result, string.char(bit32.bxor(char, key)))
     end
     return table.concat(result)
@@ -244,17 +245,17 @@ end)
             return code
                 .replace(/--\[\[[\s\S]*?\]\]/g, '')
                 .replace(/--[^\n]*/g, '')
-                .replace(/^\s+/gm, '') // Remove leading whitespace
-                .replace(/\s+$/gm, '') // Remove trailing whitespace
-                .replace(/\n+/g, '\n'); // Remove extra newlines
+                .replace(/^\s+/gm, '')
+                .replace(/\s+$/gm, '')
+                .replace(/\n+/g, '\n');
         }
 
         function minifyCode(code) {
             return code
-                .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-                .replace(/ ?([=+-/*<>&|~^%]) ?/g, '$1') // Remove spaces around operators
-                .replace(/ ?([(),;]) ?/g, '$1') // Remove spaces around punctuation
-                .replace(/^\s+|\s+$/g, ''); // Trim
+                .replace(/\s+/g, ' ')
+                .replace(/ ?([=+-/*<>&|~^%]) ?/g, '$1')
+                .replace(/ ?([(),;]) ?/g, '$1')
+                .replace(/^\s+|\s+$/g, '');
         }
 
         function computeChecksum(code) {
@@ -263,6 +264,38 @@ end)
                 sum += code.charCodeAt(i) * ((i % 17) + 1);
             }
             return sum;
+        }
+
+        function escapeLuauString(str) {
+            return str.replace(/([^\x20-\x7e])|["\\]/g, (match) => {
+                return '\\' + match.charCodeAt(0);
+            });
+        }
+
+        function xorString(str, key) {
+            let result = '';
+            for (let i = 0; i < str.length; i++) {
+                result += String.fromCharCode(str.charCodeAt(i) ^ key);
+            }
+            return result;
+        }
+
+        function generateCustomBase64Table() {
+            const std = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+            const chars = std.split('');
+            for (let i = chars.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [chars[i], chars[j]] = [chars[j], chars[i]];
+            }
+            return chars.join('');
+        }
+
+        function generateRandomKeys(len) {
+            const keys = [];
+            for (let i = 0; i < len; i++) {
+                keys.push(Math.floor(Math.random() * 256));
+            }
+            return keys;
         }
 
         function obfuscate(type) {
@@ -278,7 +311,11 @@ end)
             const minify = document.getElementById('minify').checked;
             const deadCode = document.getElementById('deadCode').checked;
 
-            let temp = code;
+            let temp = removeComments(code);
+            if (minify) {
+                temp = minifyCode(temp);
+            }
+
             let outputType = '';
 
             const protectedIdentifiers = new Set([
@@ -293,26 +330,6 @@ end)
                 'Vector3int16', 'Vector2int16', 'task', 'wait', 'spawn', 'delay', 'Players',
                 'LocalPlayer', 'Name', 'b64decode', 'xorDecode', 'checkTamper'
             ]);
-
-            if (type === 'base64' || type === 'max') {
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    const encoded = btoa(unescape(encodeURIComponent(str)));
-                    return `b64decode("${encoded}")`;
-                });
-                outputType = type === 'base64' ? 'Base64 Strings' : outputType;
-            }
-
-            if (type === 'xor' || type === 'max') {
-                const key = Math.floor(Math.random() * 256);
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    let encrypted = '';
-                    for (let i = 0; i < str.length; i++) {
-                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ key);
-                    }
-                    return `xorDecode("${encrypted.replace(/"/g, '\\"')}", ${key})`;
-                });
-                outputType = type === 'xor' ? 'XOR Strings' : outputType;
-            }
 
             if (type === 'rename' || type === 'max') {
                 let identifierMap = new Map();
@@ -329,6 +346,60 @@ end)
                     return identifierMap.get(id);
                 });
                 outputType = type === 'rename' ? 'Variable Renaming' : outputType;
+            }
+
+            if (numObf || type === 'max') {
+                temp = temp.replace(/\b(\d+)\b/g, (match, num) => {
+                    num = parseInt(num);
+                    if (num === 0) return '0';
+                    if (num === 1) return '1';
+                    const ops = ['+', '-', '*', '/'];
+                    const op = ops[Math.floor(Math.random() * ops.length)];
+                    let a = Math.floor(Math.random() * num + 1);
+                    if (a === 0) a = 1;
+                    let b = num - a;
+                    if (op === '+') return `(${a} + ${b})`;
+                    if (op === '-') return `(${a + num} - ${a})`;
+                    if (op === '*') return `(${a} * ${Math.floor(num / a)})`;
+                    if (op === '/') return `(${num * a} / ${a})`;
+                    return num;
+                });
+            }
+
+            if (strSplit || type === 'max') {
+                temp = temp.replace(/"([^"]{3,})"/g, (match, str) => {
+                    const parts = [];
+                    for (let i = 0; i < str.length; ) {
+                        const len = Math.floor(Math.random() * 3) + 1;
+                        parts.push(`"${escapeLuauString(str.substr(i, len))}"`);
+                        i += len;
+                    }
+                    return parts.join(' .. ');
+                });
+            }
+
+            if (type === 'base64' || type === 'max') {
+                const customTable = generateCustomBase64Table();
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    let encoded = btoa(unescape(encodeURIComponent(str)));
+                    const shuffled = encoded.replace(/./g, c => customTable[stdB64.indexOf(c)]);
+                    return `b64decode("${shuffled}", "${customTable}")`;
+                });
+                outputType = type === 'base64' ? 'Base64 Strings' : outputType;
+            }
+
+            if (type === 'xor' || type === 'max') {
+                const keys = generateRandomKeys(5 + Math.floor(Math.random() * 5));
+                const keysStr = '[' + keys.join(', ') + ']';
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    let encrypted = '';
+                    const keyLen = keys.length;
+                    for (let i = 0; i < str.length; i++) {
+                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ keys[i % keyLen]);
+                    }
+                    return `xorDecode("${escapeLuauString(encrypted)}", ${keysStr})`;
+                });
+                outputType = type === 'xor' ? 'XOR Strings' : outputType;
             }
 
             if (type === 'control' || type === 'max') {
@@ -363,97 +434,88 @@ end
 for ${randomString(12)} = 1, math.random(3,5) do
     local ${randomString(12)} = bit32.lshift(1, math.random(1,5))
 end
+`,
+                    `
+local ${randomString(12)} = {math.random(), math.random()}
+table.sort(${randomString(12)})
+`,
+                    `
+local ${randomString(12)} = function() local a = math.random(); return a * math.random() end
+${randomString(12)}()
 `
                 ];
                 const lines = temp.split('\n');
                 let newLines = [];
                 for (let line of lines) {
                     newLines.push(line);
-                    if (Math.random() > 0.5) {
-                        const junk = junkTemplates[Math.floor(Math.random() * junkTemplates.length)].repeat(Math.floor(Math.random() * 3) + 1);
-                        newLines.push(junk);
+                    if (Math.random() > 0.4) {
+                        const junkIndex = Math.floor(Math.random() * junkTemplates.length);
+                        const repeatCount = Math.floor(Math.random() * 4) + 1;
+                        newLines.push(junkTemplates[junkIndex].repeat(repeatCount));
                     }
                 }
                 temp = newLines.join('\n');
                 outputType = type === 'control' ? 'Control Flow' : outputType;
             }
 
-            if (numObf || type === 'max') {
-                temp = temp.replace(/\b(\d+)\b/g, (match, num) => {
-                    num = parseInt(num);
-                    const ops = ['+', '-', '*', '/', '^', '%'];
-                    const op = ops[Math.floor(Math.random() * ops.length)];
-                    let a = Math.floor(Math.random() * (num || 1) + 1) || 1;
-                    let b = op === '+' ? num - a : op === '-' ? a : op === '*' ? (num > 1 ? 2 : 1) : op === '/' ? (num > 1 ? 2 : 1) : op === '^' ? 2 : Math.floor(Math.random() * num + 1);
-                    if (op === '+') return `(${a} + ${num - a})`;
-                    if (op === '-') return `(${a + num} - ${a})`;
-                    if (op === '*') return `(${num} * 1)`;
-                    if (op === '/') return `(${num} / 1)`;
-                    if (op === '^') return `(math.pow(${a}, ${Math.log(num) / Math.log(a) || 1}))`;
-                    if (op === '%') return `(${num + a} % ${a + 1})`;
-                    return num;
-                });
-            }
-
-            if (strSplit || type === 'max') {
-                temp = temp.replace(/"([^"]{3,})"/g, (match, str) => {
-                    const parts = [];
-                    for (let i = 0; i < str.length; i += Math.floor(Math.random() * 3) + 1) {
-                        parts.push(`"${str.slice(i, i + Math.floor(Math.random() * 3) + 1).replace(/"/g, '\\"')}"`);
-                    }
-                    return parts.join(' .. ');
-                });
-            }
-
             if (deadCode || type === 'max') {
                 const deadTemplates = [
                     `if false then print("dead") end`,
                     `local ${randomString(12)} = nil; if ${randomString(12)} then end`,
-                    `for i=1,0 do end`
+                    `for i=1,0 do end`,
+                    `local ${randomString(12)} = function() return end; ${randomString(12)}()`,
+                    `if nil then end`,
+                    `local ${randomString(12)} = math.random() > 2 and true or false; if ${randomString(12)} then end`
                 ];
                 const lines = temp.split('\n');
                 let newLines = [];
                 for (let line of lines) {
                     newLines.push(line);
-                    if (Math.random() > 0.7) {
-                        const dead = deadTemplates[Math.floor(Math.random() * deadTemplates.length)];
-                        newLines.push(dead);
+                    if (Math.random() > 0.6) {
+                        const deadIndex = Math.floor(Math.random() * deadTemplates.length);
+                        newLines.push(deadTemplates[deadIndex]);
                     }
                 }
                 temp = newLines.join('\n');
             }
 
             if (type === 'max') {
-                const key = Math.floor(Math.random() * 256);
-                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    const encoded = btoa(unescape(encodeURIComponent(str)));
-                    let encrypted = '';
-                    for (let i = 0; i < encoded.length; i++) {
-                        encrypted += String.fromCharCode(encoded.charCodeAt(i) ^ key);
-                    }
-                    return `b64decode(xorDecode("${encrypted.replace(/"/g, '\\"')}", ${key}))`;
+                // Add even more layers for max
+                const extraKey = Math.floor(Math.random() * 256);
+                temp = temp.replace(/b64decode\("([^"]*)"\, "([^"]*)"\)/g, (match, shuffled, tbl) => {
+                    let extraEncrypted = xorString(shuffled, extraKey);
+                    return `b64decode(xorDecode("${escapeLuauString(extraEncrypted)}", ${extraKey}), "${tbl}")`;
                 });
-                outputType = 'Obfuscate Using Everything';
+                temp = temp.replace(/xorDecode\("([^"]*)"\, \[(.*?)\]\)/g, (match, encrypted, keysStr) => {
+                    const keys = keysStr.split(', ').map(Number);
+                    const newKeys = keys.map(k => k ^ extraKey);
+                    const newKeysStr = '[' + newKeys.join(', ') + ']';
+                    return `xorDecode(xorDecode("${escapeLuauString(encrypted)}", ${extraKey}), ${newKeysStr})`;
+                });
             }
 
             let finalCode = temp;
 
+            let decodeFns = '';
             if (type === 'base64' || type === 'max') {
-                finalCode = base64DecodeFn + finalCode;
+                decodeFns += base64DecodeFn;
             }
             if (type === 'xor' || type === 'max') {
-                finalCode = xorDecodeFn + finalCode;
+                decodeFns += xorDecodeFn;
             }
+            finalCode = decodeFns + finalCode;
+
             if (protection247) {
                 finalCode = protection247Fn + finalCode;
             }
+
             if (over5kb) {
                 let junk = '';
                 const targetSize = 5120 * 2;
                 while (junk.length < targetSize) {
                     for (let service of services) {
                         let varname = randomString(100);
-                        junk += `local ${varname} = game:GetService("${service}")\n`;
+                        junk += `local ${varname}=game:GetService("${service}")\n`;
                         if (junk.length >= targetSize) break;
                     }
                 }
@@ -461,7 +523,7 @@ end
             }
 
             if (antiTamper) {
-                if (hideSource) {
+                if (hideSource || finalCode.length > 10000) {
                     const dummyCode = 'function() end';
                     const checksum = computeChecksum(dummyCode);
                     temp = antiTamperNoSourceTemplate.replace('%d', checksum) + finalCode;
@@ -475,13 +537,10 @@ end
             }
 
             if (maxProtection) {
-                temp = temp.replace(/b64decode\((xorDecode\("([^"]*)"\, (\d+)\))\)/g, (match, inner, encoded, key) => {
-                    const doubleInner = btoa(atob(encoded));
-                    let reEncrypted = '';
-                    for (let i = 0; i < doubleInner.length; i++) {
-                        reEncrypted += String.fromCharCode(doubleInner.charCodeAt(i) ^ (parseInt(key) % 128 + 1));
-                    }
-                    return `b64decode(xorDecode(b64decode(xorDecode("${reEncrypted.replace(/"/g, '\\"')}", ${parseInt(key) % 128 + 1})), ${key}))`;
+                temp = temp.replace(/b64decode\(xorDecode\("([^"]*)"\, (\d+)\)\, "([^"]*)"\)/g, (match, extraEncrypted, extraKey, tbl) => {
+                    const doubleTbl = generateCustomBase64Table();
+                    const shuffledTbl = doubleTbl.replace(/./g, c => tbl[doubleTbl.indexOf(c)]);
+                    return `b64decode(b64decode("${extraEncrypted}", "${shuffledTbl}"), "${doubleTbl}")`;
                 });
             }
 
@@ -518,6 +577,8 @@ end
             }
             return result;
         }
+
+        const stdB64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
         function btoa(str) {
             try {
