@@ -110,15 +110,16 @@
         <h1 class="glow">Luau Code Deobfuscator</h1>
         <textarea id="inputCode" placeholder="Enter your obfuscated Luau code here..."></textarea>
         <div class="toggles">
-            <label><input type="checkbox" id="removeASCII"> Remove ASCII Escapes</label>
-            <label><input type="checkbox" id="base64"> Base64 Decoding</label>
-            <label><input type="checkbox" id="xor"> XOR Decoding</label>
-            <label><input type="checkbox" id="rename"> Variable Renaming</label>
-            <label><input type="checkbox" id="numObf"> Number Deobfuscation</label>
-            <label><input type="checkbox" id="strSplit"> String Desplitting</label>
-            <label><input type="checkbox" id="control"> Control Flow Cleanup</label>
-            <label><input type="checkbox" id="deadCode"> Dead Code Removal</label>
-            <label><input type="checkbox" id="antiDump"> Anti-Dump Removal</label>
+            <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
+            <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
+            <label><input type="checkbox" id="base64" checked> Base64 Decoding</label>
+            <label><input type="checkbox" id="xor" checked> XOR Decoding</label>
+            <label><input type="checkbox" id="rename" checked> Variable Renaming</label>
+            <label><input type="checkbox" id="numObf" checked> Number Deobfuscation</label>
+            <label><input type="checkbox" id="strSplit" checked> String Desplitting</label>
+            <label><input type="checkbox" id="control" checked> Control Flow Cleanup</label>
+            <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
+            <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
             <label><input type="checkbox" id="minify"> Minify Output</label>
         </div>
         <div class="buttons">
@@ -135,7 +136,7 @@
             return code
                 .replace(/--\[\[[\s\S]*?\]\]/g, '')
                 .replace(/--[^\n]*/g, '')
-                .replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '') // Remove Unicode junk
+                .replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
                 .replace(/^\s+/gm, '')
                 .replace(/\s+$/gm, '')
                 .replace(/\n+/g, '\n')
@@ -154,6 +155,15 @@
             return str.replace(/\\(\d{1,3})/g, (match, num) => {
                 const charCode = parseInt(num, 10);
                 return String.fromCharCode(charCode);
+            });
+        }
+
+        function decodeStringChar(str) {
+            // Match string.char(num1, num2, ...)
+            return str.replace(/string\.char\(([\d,\s]+)\)/g, (match, nums) => {
+                const numbers = nums.split(',').map(n => parseInt(n.trim()));
+                const decoded = numbers.map(n => String.fromCharCode(n)).join('');
+                return `"${decoded}"`;
             });
         }
 
@@ -203,7 +213,6 @@
 
         function evaluateNumberExpression(expr) {
             try {
-                // Basic evaluation for simple math expressions
                 if (expr.match(/^\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)$/)) {
                     return expr.replace(/^\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)$/, (m, a, op, b) => {
                         a = Number(a);
@@ -238,6 +247,7 @@
                 }
 
                 let temp = removeComments(code);
+                const stringChar = document.getElementById('stringChar').checked;
                 const removeASCII = document.getElementById('removeASCII').checked;
                 const base64 = document.getElementById('base64').checked;
                 const xor = document.getElementById('xor').checked;
@@ -267,9 +277,40 @@
                     temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
                 }
 
+                // String.char Decoding
+                if (stringChar || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/\b(string\.char)\(([\d,\s]+)\)/g, (match, fn, nums) => {
+                            const numbers = nums.split(',').map(n => parseInt(n.trim()));
+                            const decoded = numbers.map(n => String.fromCharCode(n)).join('');
+                            return `"${decoded}"`;
+                        });
+                    } while (oldTemp !== temp);
+                }
+
+                // _G Function Call Resolution
+                let oldTemp;
+                do {
+                    oldTemp = temp;
+                    // Handle _G["string"](...)
+                    temp = temp.replace(/_G\[(".*?")\]\((.*?)\)/g, (match, fn, args) => {
+                        return `${fn.slice(1, -1)}(${args})`;
+                    });
+                    // Handle _G[variable](...)
+                    temp = temp.replace(/_G\[(\w+)\]\((.*?)\)/g, (match, varName, args) => {
+                        // Find the variable's value
+                        const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
+                        if (varMatch) {
+                            return `${varMatch[1]}(${args})`;
+                        }
+                        return match;
+                    });
+                } while (oldTemp !== temp);
+
                 // ASCII Escape Sequences
                 if (removeASCII || type === 'all') {
-                    let oldTemp;
                     do {
                         oldTemp = temp;
                         temp = temp.replace(/"((?:\\(?:\d{1,3})|[^"\\])*)"/g, (match, str) => {
@@ -281,17 +322,14 @@
 
                 // Base64 Decoding (including layered)
                 if (base64 || type === 'all') {
-                    let oldTemp;
                     do {
                         oldTemp = temp;
-                        // Handle b64decode(xorDecode(...))
                         temp = temp.replace(/b64decode\(xorDecode\("([^"]*)",\s*\[([^\]]*)\]\),\s*"([^"]*)"\)/g, (match, str, keysStr, tbl) => {
                             const keys = keysStr.split(',').map(k => Number(k.trim()));
                             const xorDecoded = jsXorDecode(unescapeLuauString(str), keys);
                             const decoded = jsB64Decode(xorDecoded, tbl);
                             return `"${decoded}"`;
                         });
-                        // Handle standalone b64decode
                         temp = temp.replace(/b64decode\("([^"]*)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
                             const decoded = jsB64Decode(unescapeLuauString(str), tbl);
                             return `"${decoded}"`;
@@ -301,7 +339,6 @@
 
                 // XOR Decoding
                 if (xor || type === 'all') {
-                    let oldTemp;
                     do {
                         oldTemp = temp;
                         temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
@@ -314,7 +351,6 @@
 
                 // String Desplitting
                 if (strSplit || type === 'all') {
-                    let oldTemp;
                     do {
                         oldTemp = temp;
                         temp = temp.replace(/(".*?")\s*\.\.\s*(".*?")/g, (match, a, b) => {
@@ -326,7 +362,6 @@
 
                 // Number Deobfuscation
                 if (numObf || type === 'all') {
-                    let oldTemp;
                     do {
                         oldTemp = temp;
                         temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
@@ -353,17 +388,14 @@
 
                 // Control Flow and Dead Code Cleanup
                 if (control || deadCode || type === 'all') {
-                    let oldTemp;
                     do {
                         oldTemp = temp;
-                        // Remove dead code patterns
                         temp = temp.replace(/if false then[\s\S]*?end/g, '');
                         temp = temp.replace(/if nil then[\s\S]*?end/g, '');
                         temp = temp.replace(/for\s+\w+\s*=\s*1\s*,\s*0\s*do[\s\S]*?end/g, '');
                         temp = temp.replace(/local \w+ = nil; if \w+ then[\s\S]*?end/g, '');
                         temp = temp.replace(/local \w+ = function\(\) return end; \w+\(\)/g, '');
                         temp = temp.replace(/local \w+ = math\.random\(\) > [\d\.]+ and true or false; if \w+ then end/g, '');
-                        // Remove junk control flow
                         temp = temp.replace(/local \w+ = math\.random\(\)\s*if \w+ < [\d\.]+ then[\s\S]*?end/g, '');
                         temp = temp.replace(/local \w+ = {}\s*for i = 1, math\.random\(\d,\d\) do[\s\S]*?table\.sort\(\w+\)/g, '');
                     } while (oldTemp !== temp);
