@@ -132,6 +132,21 @@
     </div>
 
     <script>
+        const asciiTable = {
+            32: ' ', 33: '!', 34: '"', 35: '#', 36: '$', 37: '%', 38: '&', 39: '\'',
+            40: '(', 41: ')', 42: '*', 43: '+', 44: ',', 45: '-', 46: '.', 47: '/',
+            48: '0', 49: '1', 50: '2', 51: '3', 52: '4', 53: '5', 54: '6', 55: '7',
+            56: '8', 57: '9', 58: ':', 59: ';', 60: '<', 61: '=', 62: '>', 63: '?',
+            64: '@', 65: 'A', 66: 'B', 67: 'C', 68: 'D', 69: 'E', 70: 'F', 71: 'G',
+            72: 'H', 73: 'I', 74: 'J', 75: 'K', 76: 'L', 77: 'M', 78: 'N', 79: 'O',
+            80: 'P', 81: 'Q', 82: 'R', 83: 'S', 84: 'T', 85: 'U', 86: 'V', 87: 'W',
+            88: 'X', 89: 'Y', 90: 'Z', 91: '[', 92: '\\', 93: ']', 94: '^', 95: '_',
+            96: '`', 97: 'a', 98: 'b', 99: 'c', 100: 'd', 101: 'e', 102: 'f', 103: 'g',
+            104: 'h', 105: 'i', 106: 'j', 107: 'k', 108: 'l', 109: 'm', 110: 'n', 111: 'o',
+            112: 'p', 113: 'q', 114: 'r', 115: 's', 116: 't', 117: 'u', 118: 'v', 119: 'w',
+            120: 'x', 121: 'y', 122: 'z', 123: '{', 124: '|', 125: '}', 126: '~'
+        };
+
         function removeComments(code) {
             return code
                 .replace(/--\[\[[\s\S]*?\]\]/g, '')
@@ -154,7 +169,7 @@
         function unescapeLuauString(str) {
             return str.replace(/\\(\d{1,3})/g, (match, num) => {
                 const charCode = parseInt(num, 10);
-                return String.fromCharCode(charCode);
+                return asciiTable[charCode] || String.fromCharCode(charCode);
             });
         }
 
@@ -171,7 +186,7 @@
                         if (nums.some(n => n < 0 || n > 255)) {
                             throw new Error("Invalid string.char numbers: must be 0-255");
                         }
-                        const decoded = nums.map(n => String.fromCharCode(n)).join('');
+                        const decoded = nums.map(n => asciiTable[n] || String.fromCharCode(n)).join('');
                         return `"${decoded}"`;
                     });
                 } while (oldTemp !== temp);
@@ -251,8 +266,8 @@
         }
 
         function cleanUnusedVariables(code) {
-            let lines = code.split('\n');
-            let usedVars = new Set();
+            let lines = code.split('\n').map(line => line.trim()).filter(line => line);
+            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table']); // Exclude built-ins
             let varAssignments = new Map();
 
             // Collect variable usage and assignments
@@ -265,18 +280,9 @@
                 used.forEach(v => usedVars.add(v));
             }
 
-            // Filter out unused variables
+            // Filter out unused variable assignments
             let newLines = lines.filter(line => {
                 const varMatch = line.match(/local\s+(\w+)\s*=/);
-                if (varMatch && !usedVars.has(varMatch[1])) {
-                    return false;
-                }
-                return true;
-            });
-
-            // Remove lines that are just variable assignments with no further use
-            newLines = newLines.filter(line => {
-                const varMatch = line.match(/local\s+(\w+)\s*=\s*"[^"]*"/);
                 if (varMatch && !usedVars.has(varMatch[1])) {
                     return false;
                 }
@@ -335,7 +341,11 @@
 
                 // String.char Decoding
                 if (stringChar || type === 'all') {
-                    temp = decodeStringChar(temp, stringCharAliases);
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = decodeStringChar(temp, stringCharAliases);
+                    } while (oldTemp !== temp);
                 }
 
                 // _G Function Call Resolution
@@ -351,6 +361,7 @@
                         const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
                         if (varMatch) {
                             const fnName = varMatch[1];
+                            // Check if args is a variable with a string value
                             const argMatch = temp.match(new RegExp(`local\\s+(${args})\\s*=\\s*"([^"]*)"`));
                             if (argMatch) {
                                 return `${fnName}("${argMatch[2]}")`;
@@ -372,7 +383,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Base64 Decoding (including layered)
+                // Base64 Decoding
                 if (base64 || type === 'all') {
                     do {
                         oldTemp = temp;
