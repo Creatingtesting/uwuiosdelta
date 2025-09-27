@@ -110,23 +110,19 @@
         <h1 class="glow">Luau Code Deobfuscator</h1>
         <textarea id="inputCode" placeholder="Enter your obfuscated Luau code here..."></textarea>
         <div class="toggles">
-            <label><input type="checkbox" id="antiTamper"> Anti Tamper</label>
-            <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
-            <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
-            <label><input type="checkbox" id="over5kb"> Over 5KB Size</label>
+            <label><input type="checkbox" id="removeASCII"> Remove ASCII Escapes</label>
+            <label><input type="checkbox" id="base64"> Base64 Decoding</label>
+            <label><input type="checkbox" id="xor"> XOR Decoding</label>
+            <label><input type="checkbox" id="rename"> Variable Renaming</label>
             <label><input type="checkbox" id="numObf"> Number Deobfuscation</label>
-            <label><input type="checkbox" id="strSplit"> String DeSplitting</label>
-            <label><input type="checkbox" id="hideSource"> Hide Source</label>
+            <label><input type="checkbox" id="strSplit"> String Desplitting</label>
+            <label><input type="checkbox" id="control"> Control Flow Cleanup</label>
+            <label><input type="checkbox" id="deadCode"> Dead Code Removal</label>
+            <label><input type="checkbox" id="antiDump"> Anti-Dump Removal</label>
             <label><input type="checkbox" id="minify"> Minify Output</label>
-            <label><input type="checkbox" id="deadCode"> Remove Dead Code</label>
-            <label><input type="checkbox" id="antiDump"> Anti Dump</label>
         </div>
         <div class="buttons">
-            <button onclick="deobfuscate('base64')">DeBase64 Strings</button>
-            <button onclick="deobfuscate('xor')">DeXOR Strings</button>
-            <button onclick="deobfuscate('rename')">DeVariable Renaming</button>
-            <button onclick="deobfuscate('control')">DeControl Flow</button>
-            <button onclick="deobfuscate('max')">Deobfuscate Using Everything</button>
+            <button onclick="deobfuscate('all')">Deobfuscate All</button>
             <button onclick="copyCode()">Copy Code</button>
         </div>
         <h2>Deobfuscated Code</h2>
@@ -135,16 +131,33 @@
     </div>
 
     <script>
-        const defaultCode = `local player = game.Players.LocalPlayer
-local function greet(name)
-    print("Hello, " .. name .. "!")
-end
-greet(player.Name)
-for i = 1, 5 do
-    print("Count: " .. i)
-end`;
+        function removeComments(code) {
+            return code
+                .replace(/--\[\[[\s\S]*?\]\]/g, '')
+                .replace(/--[^\n]*/g, '')
+                .replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '') // Remove Unicode junk
+                .replace(/^\s+/gm, '')
+                .replace(/\s+$/gm, '')
+                .replace(/\n+/g, '\n')
+                .trim();
+        }
 
-        function jsB4decode(str, tbl) {
+        function minifyCode(code) {
+            return code
+                .replace(/\s+/g, ' ')
+                .replace(/ ?([=+-/*<>&|~^%]) ?/g, '$1')
+                .replace(/ ?([(),;]) ?/g, '$1')
+                .replace(/^\s+|\s+$/g, '');
+        }
+
+        function unescapeLuauString(str) {
+            return str.replace(/\\(\d{1,3})/g, (match, num) => {
+                const charCode = parseInt(num, 10);
+                return String.fromCharCode(charCode);
+            });
+        }
+
+        function jsB64Decode(str, tbl) {
             let r = [];
             let t = [];
             for (let i = 0; i < str.length; i++) {
@@ -160,17 +173,21 @@ end`;
             }
             for (let i = 0; i < t.length; i += 4) {
                 let v1 = t[i] || 0;
-                let v2 = t[i+1] || 0;
-                let v3 = t[i+2] || 0;
-                let v4 = t[i+3] || 0;
-                let a = (v1 * 4 + (v2 >> 4)) >> 0;
-                let b = (((v2 & 15) * 16) + (v3 >> 2)) >> 0;
-                let c = (((v3 & 3) * 64) + v4) >> 0;
+                let v2 = t[i + 1] || 0;
+                let v3 = t[i + 2] || 0;
+                let v4 = t[i + 3] || 0;
+                let a = ((v1 * 4 + (v2 >> 4)) >> 0) & 0xFF;
+                let b = (((v2 & 15) * 16 + (v3 >> 2)) >> 0) & 0xFF;
+                let c = (((v3 & 3) * 64 + v4) >> 0) & 0xFF;
                 r.push(String.fromCharCode(a));
-                if (t[i+2] != undefined) r.push(String.fromCharCode(b));
-                if (t[i+3] != undefined) r.push(String.fromCharCode(c));
+                if (t[i + 2] != undefined) r.push(String.fromCharCode(b));
+                if (t[i + 3] != undefined) r.push(String.fromCharCode(c));
             }
-            return r.join('');
+            try {
+                return decodeURIComponent(escape(r.join('')));
+            } catch (e) {
+                return r.join('');
+            }
         }
 
         function jsXorDecode(str, keys) {
@@ -184,46 +201,147 @@ end`;
             return result.join('');
         }
 
+        function evaluateNumberExpression(expr) {
+            try {
+                // Basic evaluation for simple math expressions
+                if (expr.match(/^\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)$/)) {
+                    return expr.replace(/^\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)$/, (m, a, op, b) => {
+                        a = Number(a);
+                        b = Number(b);
+                        switch (op) {
+                            case '+': return a + b;
+                            case '-': return a - b;
+                            case '*': return a * b;
+                            case '/': return a / b;
+                        }
+                    });
+                }
+                if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
+                    return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
+                }
+                if (expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/)) {
+                    const [_, a, b] = expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/);
+                    return Number(a) ^ Number(b);
+                }
+                return expr;
+            } catch (e) {
+                return expr;
+            }
+        }
+
         function deobfuscate(type) {
             try {
-                let code = document.getElementById('inputCode').value || defaultCode;
-                let temp = removeComments(code);
-                const minify = document.getElementById('minify').checked;
-                const antiDump = document.getElementById('antiDump').checked;
-                const deadCode = document.getElementById('deadCode').checked;
-                const numObf = document.getElementById('numObf').checked;
-                const strSplit = document.getElementById('strSplit').checked;
-
-                let outputType = '';
-
-                if (type === 'base64' || type === 'max') {
-                    let oldTemp;
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/b64decode\("([^"]*)",\ "([^"]*)"\)/g, (match, str, tbl) => `"${jsB4decode(str, tbl)}"`);
-                    } while (oldTemp !== temp);
-                    outputType = type === 'base64' ? 'DeBase64 Strings' : outputType;
+                let code = document.getElementById('inputCode').value.trim();
+                if (!code) {
+                    document.getElementById('output').textContent = 'No code to deobfuscate.';
+                    return;
                 }
 
-                if (type === 'xor' || type === 'max') {
+                let temp = removeComments(code);
+                const removeASCII = document.getElementById('removeASCII').checked;
+                const base64 = document.getElementById('base64').checked;
+                const xor = document.getElementById('xor').checked;
+                const rename = document.getElementById('rename').checked;
+                const numObf = document.getElementById('numObf').checked;
+                const strSplit = document.getElementById('strSplit').checked;
+                const control = document.getElementById('control').checked;
+                const deadCode = document.getElementById('deadCode').checked;
+                const antiDump = document.getElementById('antiDump').checked;
+                const minify = document.getElementById('minify').checked;
+
+                let outputType = 'Deobfuscate All';
+
+                // Remove Anti-Tamper and Hide Source
+                temp = temp.replace(/local function checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
+                temp = temp.replace(/local function checkTamper[\s\S]*?checkTamper\(\)/g, '');
+
+                // Remove 24/7 Protection
+                temp = temp.replace(/spawn\(function\(\)\s*while true do\s*wait\(10\)\s*end\s*end\)/g, '');
+
+                // Remove Over 5KB Junk
+                temp = temp.replace(/local \w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
+
+                // Anti-Dump Removal
+                if (antiDump || type === 'all') {
+                    temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
+                    temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+                }
+
+                // ASCII Escape Sequences
+                if (removeASCII || type === 'all') {
                     let oldTemp;
                     do {
                         oldTemp = temp;
-                        temp = temp.replace(/xorDecode\("([^"]*)",\ \[(.*?)\]\)/g, (match, str, keysStr) => {
-                            const keys = keysStr.split(', ').map(Number);
-                            const decoded = jsXorDecode(str, keys);
+                        temp = temp.replace(/"((?:\\(?:\d{1,3})|[^"\\])*)"/g, (match, str) => {
+                            const decoded = unescapeLuauString(str);
                             return `"${decoded}"`;
                         });
                     } while (oldTemp !== temp);
-                    outputType = type === 'xor' ? 'DeXOR Strings' : outputType;
                 }
 
-                if (type === 'rename' || type === 'max') {
+                // Base64 Decoding (including layered)
+                if (base64 || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        // Handle b64decode(xorDecode(...))
+                        temp = temp.replace(/b64decode\(xorDecode\("([^"]*)",\s*\[([^\]]*)\]\),\s*"([^"]*)"\)/g, (match, str, keysStr, tbl) => {
+                            const keys = keysStr.split(',').map(k => Number(k.trim()));
+                            const xorDecoded = jsXorDecode(unescapeLuauString(str), keys);
+                            const decoded = jsB64Decode(xorDecoded, tbl);
+                            return `"${decoded}"`;
+                        });
+                        // Handle standalone b64decode
+                        temp = temp.replace(/b64decode\("([^"]*)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
+                            const decoded = jsB64Decode(unescapeLuauString(str), tbl);
+                            return `"${decoded}"`;
+                        });
+                    } while (oldTemp !== temp);
+                }
+
+                // XOR Decoding
+                if (xor || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
+                            const keys = keysStr.split(',').map(k => Number(k.trim()));
+                            const decoded = jsXorDecode(unescapeLuauString(str), keys);
+                            return `"${decoded}"`;
+                        });
+                    } while (oldTemp !== temp);
+                }
+
+                // String Desplitting
+                if (strSplit || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/(".*?")\s*\.\.\s*(".*?")/g, (match, a, b) => {
+                            const combined = a.slice(0, -1) + b.slice(1);
+                            return combined;
+                        });
+                    } while (oldTemp !== temp);
+                }
+
+                // Number Deobfuscation
+                if (numObf || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
+                    } while (oldTemp !== temp);
+                }
+
+                // Variable Renaming
+                if (rename || type === 'all') {
                     let identifierMap = new Map();
                     let variableCounter = 1;
                     temp = temp.replace(/\b(local\s+|function\s+)(\w+)/g, (match, prefix, id) => {
                         if (!identifierMap.has(id)) {
-                            identifierMap.set(id, `v${variableCounter++}`);
+                            identifierMap.set(id, `var${variableCounter++}`);
                         }
                         return `${prefix}${identifierMap.get(id)}`;
                     });
@@ -231,66 +349,34 @@ end`;
                         if (identifierMap.has(id)) return identifierMap.get(id);
                         return id;
                     });
-                    outputType = type === 'rename' ? 'DeVariable Renaming' : outputType;
                 }
 
-                if (type === 'control' || type === 'max') {
-                    temp = temp.replace(/if false then[\s\S]*?end/g, '');
-                    temp = temp.replace(/if nil then[\s\S]*?end/g, '');
-                    temp = temp.replace(/for\s+\w+\s*=\s*1\s*,\s*0\s*do[\s\S]*?end/g, '');
-                    temp = temp.replace(/local \w+ = nil; if \w+ then[\s\S]*?end/g, '');
-                    outputType = type === 'control' ? 'DeControl Flow' : outputType;
-                }
-
-                if (numObf || type === 'max') {
+                // Control Flow and Dead Code Cleanup
+                if (control || deadCode || type === 'all') {
                     let oldTemp;
                     do {
                         oldTemp = temp;
-                        temp = temp.replace(/\(\s*(\d+)\s*\+\s*(\d+)\s*\)/g, (m, a, b) => Number(a) + Number(b));
-                        temp = temp.replace(/\(\s*(\d+)\s*\-\s*(\d+)\s*\)/g, (m, a, b) => Number(a) - Number(b));
-                        temp = temp.replace(/\(\s*(\d+)\s*\*\s*(\d+)\s*\)/g, (m, a, b) => Number(a) * Number(b));
-                        temp = temp.replace(/\(\s*(\d+)\s*\/\s*(\d+)\s*\)/g, (m, a, b) => Number(a) / Number(b));
+                        // Remove dead code patterns
+                        temp = temp.replace(/if false then[\s\S]*?end/g, '');
+                        temp = temp.replace(/if nil then[\s\S]*?end/g, '');
+                        temp = temp.replace(/for\s+\w+\s*=\s*1\s*,\s*0\s*do[\s\S]*?end/g, '');
+                        temp = temp.replace(/local \w+ = nil; if \w+ then[\s\S]*?end/g, '');
+                        temp = temp.replace(/local \w+ = function\(\) return end; \w+\(\)/g, '');
+                        temp = temp.replace(/local \w+ = math\.random\(\) > [\d\.]+ and true or false; if \w+ then end/g, '');
+                        // Remove junk control flow
+                        temp = temp.replace(/local \w+ = math\.random\(\)\s*if \w+ < [\d\.]+ then[\s\S]*?end/g, '');
+                        temp = temp.replace(/local \w+ = {}\s*for i = 1, math\.random\(\d,\d\) do[\s\S]*?table\.sort\(\w+\)/g, '');
                     } while (oldTemp !== temp);
                 }
 
-                if (strSplit || type === 'max') {
-                    let oldTemp;
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/(".*?")\s*\.\.\s*(".*?")/g, (m, a, b) => a.slice(0, -1) + b.slice(1));
-                    } while (oldTemp !== temp);
-                }
-
-                if (deadCode || type === 'max') {
-                    temp = temp.replace(/if false then[\s\S]*?end/g, '');
-                    temp = temp.replace(/local \w+ = function\(\) return end; \w+\(\)/g, '');
-                    temp = temp.replace(/if nil then[\s\S]*?end/g, '');
-                    temp = temp.replace(/local \w+ = math.random\(\) > 2 and true or false; if \w+ then end/g, '');
-                }
-
-                if (antiDump) {
-                    const unicodeJunk = `${String.fromCharCode(8232, 8233, 8203, 8204, 8205, 8298, 8299, 8300, 65279, 200B, 200C, 200D, 202A, 202B, 202C, 202D, 202E)}`;
-                    const lines = temp.split('\n');
-                    let newLines = [];
-                    for (let line of lines) {
-                        newLines.push(unicodeJunk + line);
-                        if (Math.random() > 0.8) {
-                            newLines.push(unicodeJunk.repeat(Math.floor(Math.random() * 5 + 1)));
-                        }
-                    }
-                    temp = newLines.join('\n');
-                }
-
-                if (type === 'max') {
-                    outputType = 'Deobfuscate Using Everything';
-                }
-
+                // Final cleanup
+                temp = removeComments(temp);
                 if (minify) {
                     temp = minifyCode(temp);
                 }
 
                 document.getElementById('output-type').textContent = `Deobfuscation Type: ${outputType}`;
-                document.getElementById('output').textContent = temp || 'Error: No output generated';
+                document.getElementById('output').textContent = temp || 'No changes made during deobfuscation.';
             } catch (err) {
                 console.error(err);
                 document.getElementById('output').textContent = 'Error during deobfuscation: ' + err.message;
