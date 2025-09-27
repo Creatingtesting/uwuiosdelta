@@ -158,13 +158,18 @@
             });
         }
 
-        function decodeStringChar(str) {
-            // Match string.char(num1, num2, ...)
-            return str.replace(/string\.char\(([\d,\s]+)\)/g, (match, nums) => {
-                const numbers = nums.split(',').map(n => parseInt(n.trim()));
-                const decoded = numbers.map(n => String.fromCharCode(n)).join('');
-                return `"${decoded}"`;
-            });
+        function decodeStringChar(code) {
+            let oldTemp;
+            do {
+                oldTemp = code;
+                code = code.replace(/\b(\w+\.)?char\(([\d,\s]+)\)/g, (match, prefix, nums) => {
+                    const numbers = nums.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+                    if (numbers.length === 0) return match;
+                    const decoded = numbers.map(n => String.fromCharCode(n)).join('');
+                    return `"${decoded}"`;
+                });
+            } while (oldTemp !== code);
+            return code;
         }
 
         function jsB64Decode(str, tbl) {
@@ -261,37 +266,44 @@
 
                 let outputType = 'Deobfuscate All';
 
-                // Remove Anti-Tamper and Hide Source
+                // Step 1: Remove Anti-Tamper and Hide Source
                 temp = temp.replace(/local function checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
                 temp = temp.replace(/local function checkTamper[\s\S]*?checkTamper\(\)/g, '');
 
-                // Remove 24/7 Protection
+                // Step 2: Remove 24/7 Protection
                 temp = temp.replace(/spawn\(function\(\)\s*while true do\s*wait\(10\)\s*end\s*end\)/g, '');
 
-                // Remove Over 5KB Junk
+                // Step 3: Remove Over 5KB Junk
                 temp = temp.replace(/local \w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
 
-                // Anti-Dump Removal
+                // Step 4: Anti-Dump Removal
                 if (antiDump || type === 'all') {
                     temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
                     temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
                 }
 
-                // String.char Decoding
+                // Step 5: Collect variable-to-string mappings for _G resolution
+                let variableMap = new Map();
+                let oldTemp;
+                do {
+                    oldTemp = temp;
+                    temp = temp.replace(/local\s+(\w+)\s*=\s*("[^"]*"|(?:\w+\.)?char\(([\d,\s]+)\))/g, (match, varName, str, nums) => {
+                        let value = str;
+                        if (nums) {
+                            const numbers = nums.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+                            value = `"${numbers.map(n => String.fromCharCode(n)).join('')}"`;
+                        }
+                        variableMap.set(varName, value.slice(1, -1));
+                        return match;
+                    });
+                } while (oldTemp !== temp);
+
+                // Step 6: String.char Decoding
                 if (stringChar || type === 'all') {
-                    let oldTemp;
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/\b(string\.char)\(([\d,\s]+)\)/g, (match, fn, nums) => {
-                            const numbers = nums.split(',').map(n => parseInt(n.trim()));
-                            const decoded = numbers.map(n => String.fromCharCode(n)).join('');
-                            return `"${decoded}"`;
-                        });
-                    } while (oldTemp !== temp);
+                    temp = decodeStringChar(temp);
                 }
 
-                // _G Function Call Resolution
-                let oldTemp;
+                // Step 7: _G Function Call Resolution
                 do {
                     oldTemp = temp;
                     // Handle _G["string"](...)
@@ -300,16 +312,14 @@
                     });
                     // Handle _G[variable](...)
                     temp = temp.replace(/_G\[(\w+)\]\((.*?)\)/g, (match, varName, args) => {
-                        // Find the variable's value
-                        const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
-                        if (varMatch) {
-                            return `${varMatch[1]}(${args})`;
+                        if (variableMap.has(varName)) {
+                            return `${variableMap.get(varName)}(${args})`;
                         }
                         return match;
                     });
                 } while (oldTemp !== temp);
 
-                // ASCII Escape Sequences
+                // Step 8: ASCII Escape Sequences
                 if (removeASCII || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -320,7 +330,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Base64 Decoding (including layered)
+                // Step 9: Base64 Decoding
                 if (base64 || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -337,7 +347,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // XOR Decoding
+                // Step 10: XOR Decoding
                 if (xor || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -349,7 +359,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // String Desplitting
+                // Step 11: String Desplitting
                 if (strSplit || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -360,7 +370,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Number Deobfuscation
+                // Step 12: Number Deobfuscation
                 if (numObf || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -370,7 +380,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Variable Renaming
+                // Step 13: Variable Renaming
                 if (rename || type === 'all') {
                     let identifierMap = new Map();
                     let variableCounter = 1;
@@ -386,7 +396,7 @@
                     });
                 }
 
-                // Control Flow and Dead Code Cleanup
+                // Step 14: Control Flow and Dead Code Cleanup
                 if (control || deadCode || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -401,7 +411,7 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Final cleanup
+                // Step 15: Final cleanup
                 temp = removeComments(temp);
                 if (minify) {
                     temp = minifyCode(temp);
@@ -426,15 +436,6 @@
             } else {
                 alert('No code to copy!');
             }
-        }
-
-        function randomString(length) {
-            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-            let result = '_';
-            for (let i = 0; i < length - 1; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
         }
     </script>
 </body>
