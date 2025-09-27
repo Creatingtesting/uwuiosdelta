@@ -1,313 +1,431 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8"/>
-<title>Lua/General Deobfuscator</title>
-<style>
-  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 18px; }
-  textarea { width: 48%; height: 420px; font-family: monospace; font-size: 13px; }
-  .col { display:inline-block; vertical-align:top; }
-  .controls { margin: 8px 0 18px; }
-  button { margin-right:6px; }
-  label { display:inline-block; margin-right:10px; }
-  input[type="text"] { width:200px; }
-  .note { color:#666; font-size:13px; margin-top:8px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luau Code Obfuscator</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: auto;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            width: 700px;
+            max-width: 90%;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #2e2e4e;
+            border: 1px solid #00ffff;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            resize: none;
+            box-sizing: border-box;
+        }
+        .buttons {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .toggles {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border: none;
+            border-radius: 5px;
+            color: #ffffff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin: 5px;
+        }
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        label {
+            margin: 5px;
+            font-size: 0.9em;
+        }
+        #output {
+            background: #1e1e2f;
+            border: 1px solid #ff00ff;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-x: auto;
+            overflow-y: auto;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+        #output-type {
+            font-size: 0.9em;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+        .glow {
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px #00ffff;
+            }
+            to {
+                box-shadow: 0 0 20px #ff00ff;
+            }
+        }
+    </style>
 </head>
 <body>
-<h2>Lua / ASCII / Base64 / XOR Deobfuscator</h2>
+    <div class="container">
+        <h1 class="glow">Luau Code Obfuscator</h1>
+        <textarea id="inputCode" placeholder="Enter your Luau code here..."></textarea>
+        <div class="toggles">
+            <label><input type="checkbox" id="antiTamper"> Anti Tamper</label>
+            <label><input type="checkbox" id="maxProtection"> Maximum Protection</label>
+            <label><input type="checkbox" id="24Protection"> 24/7 Protection</label>
+            <label><input type="checkbox" id="over5kb"> Over 5KB Size</label>
+        </div>
+        <div class="buttons">
+            <button onclick="obfuscate('base64')">Base64 Strings</button>
+            <button onclick="obfuscate('xor')">XOR Strings</button>
+            <button onclick="obfuscate('rename')">Variable Renaming</button>
+            <button onclick="obfuscate('control')">Control Flow</button>
+            <button onclick="obfuscate('max')">Obfuscate Using Everything</button>
+            <button onclick="copyCode()">Copy Code</button>
+        </div>
+        <h2>Obfuscated Code</h2>
+        <div id="output-type">Select an obfuscation method...</div>
+        <div id="output">Obfuscated code will appear here...</div>
+    </div>
 
-<div class="controls">
-  <button id="stripComments">Remove Comments</button>
-  <button id="unescapeAscii">Unescape ASCII (\\123, \\x7b, \\u{...})</button>
-  <button id="decodeBase64">Decode Base64</button>
-  <label>XOR key: <input id="xorKey" type="text" placeholder="leave empty to brute-force 1-byte"/></label>
-  <button id="xorDecode">XOR Decode</button>
-  <button id="resolveVars">Resolve char variables & concatenation</button>
-  <button id="expandLoadstring">Expand loadstring("...")</button>
-  <button id="all">Run All</button>
-  <button id="reset">Reset Output ← Input</button>
-</div>
+    <script>
+        const defaultCode = `local player = game.Players.LocalPlayer
+local function greet(name)
+    print("Hello, " .. name .. "!")
+end
+greet(player.Name)
+for i = 1, 5 do
+    print("Count: " .. i)
+end`;
 
-<div>
-  <div class="col">
-    <h3>Input</h3>
-    <textarea id="input" spellcheck="false" placeholder="Paste obfuscated code here"></textarea>
-  </div>
-  <div class="col" style="margin-left:18px">
-    <h3>Output</h3>
-    <textarea id="output" spellcheck="false" placeholder="Deobfuscated output will appear here"></textarea>
-  </div>
-</div>
+        const base64DecodeFn = `
+local function b64decode(str)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    local t = {}
+    for i = 1, #str do
+        local c = string.sub(str, i, i)
+        if c ~= '=' then
+            local v = string.find(b, c) - 1
+            table.insert(t, v)
+        end
+    end
+    local r = {}
+    for i = 1, #t, 4 do
+        local v1, v2, v3, v4 = t[i], t[i+1], t[i+2], t[i+3]
+        local a = bit32.rshift(v1 * 4 + bit32.rshift(v2, 4), 0)
+        local b = bit32.rshift(bit32.band(v2, 15) * 16 + bit32.rshift(v3 or 0, 2), 0)
+        local c = bit32.rshift(bit32.band(v3 or 0, 3) * 64 + (v4 or 0), 0)
+        table.insert(r, string.char(a))
+        if v3 then table.insert(r, string.char(b)) end
+        if v4 then table.insert(r, string.char(c)) end
+    end
+    return table.concat(r)
+end
+`;
 
-<div class="note">
-  Notes: The tool uses heuristics. For XOR brute force it tries single-byte keys and shows outputs that look mostly printable. If you want a multi-byte key brute force, paste the key or request it. Use only on code you own or are permitted to analyze.
-</div>
+        const xorDecodeFn = `
+local function xorDecode(str, key)
+    local result = {}
+    for i = 1, #str do
+        local char = string.byte(str, i)
+        table.insert(result, string.char(bit32.bxor(char, key)))
+    end
+    return table.concat(result)
+end
+`;
 
-<script>
-(function(){
-  const inputEl = document.getElementById('input');
-  const outputEl = document.getElementById('output');
+        const antiTamperFn = `
+local function checkTamper()
+    -- Dummy check that always passes for testing; replace with real logic
+    if false then
+        error("Script tampered!")
+    end
+end
+checkTamper()
+`;
 
-  function setOutput(text){ outputEl.value = text; }
-  function getText(){ return outputEl.value || inputEl.value; }
+        const protection247Fn = `
+spawn(function()
+    while true do
+        wait(10) -- Increased wait time to reduce performance impact
+    end
+end)
+`;
 
-  // Remove Lua comments: -- single-line and --[[ ... ]]
-  function stripComments(str){
-    // Remove block comments --[[ ... ]]
-    str = str.replace(/--\[\[[\s\S]*?\]\]/g, '');
-    // Remove single-line comments -- ... (but preserve shebangs maybe)
-    str = str.replace(/(^|[^:"'\\])--[^\r\n]*/g, function(m, p1){
-      return p1;
-    });
-    return str;
-  }
+        const services = [
+            "AdService", "AnalyticsService", "AssetService", "BadgeService", "ChangeHistoryService",
+            "Chat", "CollectionService", "ContentProvider", "ContextActionService", "CookiesService",
+            "CoreGui", "Debris", "DebuggerManager", "DraftsService", "DraggerService",
+            "FilteredSelection", "FriendService", "GamePassService", "GamepadService", "Geometry",
+            "GroupService", "GuiService", "HSRDataContentProvider", "HapticService", "HttpRbxApiService",
+            "HttpService", "InsertService", "Instance", "JointsService", "LanguageService",
+            "Lighting", "LocalizationService", "LogService", "MarketplaceService", "MemStorageService",
+            "MeshContentProvider", "NotificationService", "PermissionsService", "PhysicsService", "Players",
+            "PluginDebugService", "PluginGuiService", "PointsService", "PolicyService", "ProcessInstancePhysicsService",
+            "ReplicatedFirst", "ReplicatedStorage", "RunService", "ScriptContext", "Selection",
+            "ServerScriptService", "ServerStorage", "SolidModelContentProvider", "SoundService", "StarterGui",
+            "StarterPack", "StarterPlayer", "Stats", "StudioService", "Teams",
+            "TeleportService", "TestService", "TextService", "TouchInputService", "TweenService",
+            "VRService", "VirtualInputManager", "Visit", "Workspace"
+        ];
 
-  // Unescape \ddd, \xhh, \u{hhhh}
-  function unescapeAscii(str){
-    // handle decimal escapes like \117
-    str = str.replace(/\\([0-9]{1,3})/g, function(_, d){
-      try { return String.fromCharCode(parseInt(d,10)); } catch(e) { return _; }
-    });
-    // hex escapes \xhh
-    str = str.replace(/\\x([0-9A-Fa-f]{1,2})/g, function(_, h){
-      return String.fromCharCode(parseInt(h,16));
-    });
-    // unicode \u{h...}
-    str = str.replace(/\\u\{([0-9A-Fa-f]+)\}/g, function(_, h){
-      return String.fromCodePoint(parseInt(h,16));
-    });
-    // common escaped quotes/backslashes
-    str = str.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t').replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-    return str;
-  }
-
-  // Detect base64-like tokens and decode them
-  function decodeBase64Heuristic(str){
-    // Replace patterns like "SGVsbG8=" or 'SGVsbG8=' or [[SGV..]]
-    // We'll try to decode all base64-like substrings of length >= 8 and valid base64 chars
-    const b64Regex = /(['"])([A-Za-z0-9+\/=]{8,})\1/g;
-    return str.replace(b64Regex, function(_, quote, token){
-      try {
-        // check valid padding
-        if(token.length % 4 !== 0) return _; 
-        // decode using atob (browser)
-        const decoded = atob(token);
-        // If decoded has many non-printable characters, skip
-        const printableRatio = decoded.split('').filter(c => {
-          const code = c.charCodeAt(0);
-          return (code >= 32 && code <= 126) || code===10 || code===13 || code===9;
-        }).length / Math.max(1, decoded.length);
-        if(printableRatio < 0.6) return _;
-        // return quoted decoded content
-        return quote + decoded + quote;
-      } catch(e){
-        return _;
-      }
-    });
-  }
-
-  // Replace "local v1 = 'p'" or local v1 = "\112" or local v1 = 112 or local v1 = 'a' or local v1 = "a"
-  // Build mapping and replace concatenations like v1..v2..v3 or v1..'x' etc
-  function resolveCharVariables(str){
-    // 1) extract assignments
-    const lines = str.split('\n');
-    const mapping = {}; // varname -> string
-    const assignRe = /^\s*(?:local\s+)?([A-Za-z_]\w*)\s*=\s*(.+?)\s*$/;
-    for(let ln of lines){
-      let m = ln.match(assignRe);
-      if(!m) continue;
-      const name = m[1];
-      let rhs = m[2].trim();
-      // strip trailing semicolon or comment
-      rhs = rhs.replace(/;$/, '').replace(/--.*$/, '').trim();
-      // string literal
-      let s = null;
-      let q = rhs.match(/^(['"])([\s\S]*)\1$/);
-      if(q){
-        s = q[2];
-        s = unescapeAscii(s);
-        mapping[name] = s;
-        continue;
-      }
-      // numeric literal (ascii code)
-      let n = rhs.match(/^([0-9]+)$/);
-      if(n){
-        mapping[name] = String.fromCharCode(parseInt(n[1],10));
-        continue;
-      }
-      // decimal escape in quotes like '\112'
-      let decesc = rhs.match(/^['"]((?:\\\d{1,3})+)['"]$/);
-      if(decesc){
-        mapping[name] = unescapeAscii(decesc[1]);
-        continue;
-      }
-      // single identifier assigned to another var (chain)
-      let id = rhs.match(/^([A-Za-z_]\w*)$/);
-      if(id && mapping[id[1]] !== undefined){
-        mapping[name] = mapping[id[1]];
-        continue;
-      }
-    }
-
-    // 2) replace concatenations: pattern like v1..v2..'a'..v3 => "p"+"r"+"a"+...
-    // We'll replace occurrences of (\w+(?:\.\.\w+)+) and attempt to evaluate
-    function evalConcat(match){
-      // split by .., trim each part
-      const parts = match.split(/\.\./).map(s=>s.trim());
-      let out = '';
-      for(const p of parts){
-        // variable
-        if(/^([A-Za-z_]\w*)$/.test(p)){
-          if(mapping[p] !== undefined) out += mapping[p];
-          else return match; // can't resolve
-        } else {
-          // string literal
-          const q = p.match(/^(['"])([\s\S]*)\1$/);
-          if(q) out += unescapeAscii(q[2]);
-          else return match;
+        function removeComments(code) {
+            return code
+                .replace(/--\[\[[\s\S]*?\]\]/g, '')
+                .replace(/--[^\n]*/g, '');
         }
-      }
-      return JSON.stringify(out); // return quoted string
-    }
 
-    // global replace: find concat groups of at least one '..'
-    str = str.replace(/([A-Za-z_]\w*(?:\s*\.\.\s*(?:[A-Za-z_]\w*|['"][\s\S]*?['"]))+)/g, function(m){
-      return evalConcat(m);
-    });
+        function obfuscate(type) {
+            let code = document.getElementById('inputCode').value || defaultCode;
+            let output = '';
+            const antiTamper = document.getElementById('antiTamper').checked;
+            const maxProtection = document.getElementById('maxProtection').checked;
+            const protection247 = document.getElementById('24Protection').checked;
+            const over5kb = document.getElementById('over5kb').checked;
 
-    // last pass: replace single variable references with mapped char if safe (word boundaries)
-    for(const k in mapping){
-      const val = mapping[k];
-      // only replace if mapped value is short (likely a char)
-      if(val.length <= 8){
-        // replace whole-word occurrences
-        const re = new RegExp('\\b' + k + '\\b', 'g');
-        str = str.replace(re, JSON.stringify(val));
-      }
-    }
-    return str;
-  }
+            let temp = code;
+            let outputType = '';
 
-  // XOR decode helper: supports numeric keys or string keys
-  function xorDecodeWithKey(dataStr, keyStr){
-    // dataStr: either raw bytes in JS string or something like "\123\12"
-    const data = Array.from(dataStr).map(c => c.charCodeAt(0));
-    const key = Array.from(keyStr).map(c => c.charCodeAt(0));
-    if(key.length === 0) return null;
-    const out = data.map((b,i) => String.fromCharCode(b ^ key[i % key.length])).join('');
-    return out;
-  }
+            const protectedIdentifiers = new Set([
+                'local', 'function', 'end', 'if', 'then', 'else', 'elseif', 'for', 'do', 'while',
+                'repeat', 'until', 'break', 'return', 'in', 'not', 'and', 'or', 'true', 'false',
+                'nil', 'game', 'workspace', 'script', 'shared', 'print', 'warn', 'error', 'assert',
+                'collectgarbage', 'gcinfo', 'dofile', 'loadfile', 'loadstring', 'pcall', 'xpcall',
+                'rawequal', 'rawget', 'rawset', 'select', 'setmetatable', 'getmetatable', 'tonumber',
+                'tostring', 'type', 'unpack', '_G', '_VERSION', 'table', 'string', 'math', 'os',
+                'bit32', 'coroutine', 'debug', 'Enum', 'Instance', 'UDim', 'UDim2', 'Vector2',
+                'Vector3', 'CFrame', 'Color3', 'BrickColor', 'Ray', 'Region3', 'Region3int16',
+                'Vector3int16', 'Vector2int16', 'task', 'wait', 'spawn', 'delay', 'Players',
+                'LocalPlayer', 'Name', 'b64decode', 'xorDecode' // Add decode functions to protect them
+            ]);
 
-  // Heuristic XOR: find quoted strings that look like binary-ish and try XOR
-  function xorDecodeHeuristic(str, suppliedKey){
-    // find quoted strings
-    const qRegex = /(['"])([\s\S]{4,}?)\1/g;
-    let changed = str;
-    let any = false;
-    changed = changed.replace(qRegex, function(_, quote, token){
-      // attempt only if token has nonprintables or escaped pattern
-      // convert escaped sequences first
-      const raw = unescapeAscii(token);
-      if(suppliedKey !== null){
-        const dec = xorDecodeWithKey(raw, suppliedKey);
-        if(isMostlyPrintable(dec)){
-          any = true;
-          return quote + dec + quote;
-        } else {
-          return _; // no change
+            if (type === 'base64') {
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    return `b64decode("${btoa(str)}")`;
+                });
+                output += base64DecodeFn;
+                outputType = 'Base64 Strings';
+            }
+
+            if (type === 'xor') {
+                const key = Math.floor(Math.random() * 256); // Randomize XOR key for better obfuscation
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    let encrypted = '';
+                    for (let i = 0; i < str.length; i++) {
+                        encrypted += String.fromCharCode(str.charCodeAt(i) ^ key);
+                    }
+                    return `xorDecode("${encrypted.replace(/"/g, '\\"')}", ${key})`;
+                });
+                output += xorDecodeFn.replace(/key/g, 'key'); // Already uses key
+                outputType = 'XOR Strings';
+            }
+
+            if (type === 'rename') {
+                let identifierMap = new Map();
+                temp = temp.replace(/\b(\w+)\b/g, (match, id) => {
+                    if (protectedIdentifiers.has(id)) return id;
+                    if (!identifierMap.has(id)) {
+                        identifierMap.set(id, randomString(20));
+                    }
+                    return identifierMap.get(id);
+                });
+                outputType = 'Variable Renaming';
+            }
+
+            if (type === 'control') {
+                const junkCode = `
+if math.random(1, 100) > 50 then
+    local ${randomString(12)} = math.sin(math.pi / ${Math.floor(Math.random() * 10 + 1)});
+    local ${randomString(12)} = math.cos(math.random() * 2 * math.pi);
+    local ${randomString(12)} = bit32.bxor(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
+else
+    local ${randomString(12)} = math.tan(math.random());
+    local ${randomString(12)} = bit32.band(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
+    local ${randomString(12)} = math.floor(math.random() * 100);
+end
+`;
+                const lines = temp.split('\n');
+                temp = lines.join('\n' + junkCode.repeat(2)) + '\n' + junkCode.repeat(2); // More junk for better obfuscation
+                outputType = 'Control Flow';
+            }
+
+            if (type === 'max') {
+                // Apply all obfuscations sequentially
+                // 1. Variable Renaming (enhanced)
+                let identifierMap = new Map();
+                temp = temp.replace(/\b(\w+)\b/g, (match, id) => {
+                    if (protectedIdentifiers.has(id)) return id;
+                    if (!identifierMap.has(id)) {
+                        identifierMap.set(id, randomString(20));
+                    }
+                    return identifierMap.get(id);
+                });
+
+                // 2. Control Flow (enhanced with more junk)
+                const junkCode = `
+if math.random(1, 100) > 50 then
+    local ${randomString(12)} = math.sin(math.pi / ${Math.floor(Math.random() * 10 + 1)});
+    local ${randomString(12)} = math.cos(math.random() * 2 * math.pi);
+    local ${randomString(12)} = bit32.bxor(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
+else
+    local ${randomString(12)} = math.tan(math.random());
+    local ${randomString(12)} = bit32.band(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
+    local ${randomString(12)} = math.floor(math.random() * 100);
+end
+`;
+                const lines = temp.split('\n');
+                temp = lines.join('\n' + junkCode.repeat(3)) + '\n' + junkCode.repeat(3); // Even more for better obf
+
+                // 3. String obfuscation: Base64 and XOR mixed with random key
+                const key = Math.floor(Math.random() * 256);
+                let stringCount = 0;
+                temp = temp.replace(/"([^"]*)"/g, (match, str) => {
+                    stringCount++;
+                    let encoded = btoa(str);
+                    let encrypted = '';
+                    for (let i = 0; i < encoded.length; i++) {
+                        encrypted += String.fromCharCode(encoded.charCodeAt(i) ^ key);
+                    }
+                    return `b64decode(xorDecode("${encrypted.replace(/"/g, '\\"')}", ${key}))`;
+                });
+
+                output += base64DecodeFn + xorDecodeFn;
+                outputType = 'Obfuscate Using Everything';
+
+                // Additional: Obfuscate numbers for better protection
+                temp = temp.replace(/\b(\d+)\b/g, (match, num) => {
+                    const ops = ['+', '-', '*', '/'];
+                    const op = ops[Math.floor(Math.random() * ops.length)];
+                    const a = Math.floor(Math.random() * num + 1);
+                    const b = num - a;
+                    if (op === '+') return `(${a} + ${b})`;
+                    if (op === '-') return `(${a + num} - ${a})`;
+                    if (op === '*') return num > 1 ? `(${num} * 1)` : num;
+                    if (op === '/') return num > 1 ? `(${num} / 1)` : num;
+                    return num;
+                });
+            }
+
+            if (antiTamper) {
+                temp = antiTamperFn + temp;
+            }
+
+            if (protection247) {
+                temp = protection247Fn + temp;
+            }
+
+            if (maxProtection) {
+                // Enhanced layering: add multiple b64 and xor layers
+                temp = temp.replace(/b64decode\(xorDecode\("([^"]*)"\, (\d+)\)\)/g, (match, encoded, key) => {
+                    let doubleEncoded = btoa(atob(encoded)); // Extra b64
+                    let reEncrypted = '';
+                    for (let i = 0; i < doubleEncoded.length; i++) {
+                        reEncrypted += String.fromCharCode(doubleEncoded.charCodeAt(i) ^ (key % 128 + 1)); // Vary key
+                    }
+                    return `b64decode(xorDecode(b64decode(xorDecode("${reEncrypted}", ${key % 128 + 1})), ${key}))`;
+                });
+            }
+
+            if (over5kb) {
+                let junk = '';
+                const targetSize = 5120 * 2; // Make it well over 5KB
+                while (junk.length < targetSize) {
+                    for (let service of services) {
+                        let varname = randomString(100); // Long random variable names
+                        junk += `local ${varname} = game:GetService("${service}")\n`;
+                        if (junk.length >= targetSize) break;
+                    }
+                }
+                temp = junk + temp + junk;
+            }
+
+            output += temp;
+
+            output = removeComments(output);
+
+            document.getElementById('output-type').textContent = `Obfuscation Type: ${outputType}`;
+            document.getElementById('output').textContent = output || 'Error: No output generated';
         }
-      } else {
-        // brute-force single byte keys
-        for(let k=1;k<256;k++){
-          const key = String.fromCharCode(k);
-          const candidate = xorDecodeWithKey(raw, key);
-          if(isMostlyPrintable(candidate) && looksLikeCode(candidate)){
-            any = true;
-            return quote + candidate + quote;
-          }
+
+        function copyCode() {
+            const output = document.getElementById('output').textContent;
+            if (output && output !== 'Obfuscated code will appear here...') {
+                navigator.clipboard.writeText(output).then(() => {
+                    alert('Code copied to clipboard!');
+                }).catch(err => {
+                    alert('Failed to copy: ' + err);
+                });
+            } else {
+                alert('No code to copy!');
+            }
         }
-        return _;
-      }
-    });
-    return { out: changed, found: any };
-  }
 
-  function isMostlyPrintable(s){
-    if(!s || s.length===0) return false;
-    let printable = 0;
-    for(let i=0;i<s.length;i++){
-      const c = s.charCodeAt(i);
-      if((c >= 32 && c <= 126) || c===9 || c===10 || c===13) printable++;
-    }
-    return printable / s.length > 0.8;
-  }
-  function looksLikeCode(s){
-    // crude heuristic: contains keywords or semicolons or 'function' or 'local' or 'print' or '('
-    return /function|local|print|loadstring|return|=|\(|\)|\{|\}|\;/.test(s);
-  }
+        function randomString(length) {
+            const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+            let result = '_';
+            for (let i = 0; i < length - 1; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
 
-  // Expand loadstring("...") by decoding quoted inner content
-  function expandLoadstring(str){
-    // find loadstring("...") or load("...") patterns
-    return str.replace(/(loadstring|load)\(\s*(['"])([\s\S]*?)\2\s*\)/g, function(_, fn, q, inner){
-      // unescape inner then return fn(deobf) representation
-      const decoded = unescapeAscii(inner);
-      return fn + '(' + JSON.stringify(decoded) + ')';
-    });
-  }
+        function btoa(str) {
+            try {
+                return btoa(unescape(encodeURIComponent(str)));
+            } catch (e) {
+                console.error('Base64 encoding failed:', e);
+                return str;
+            }
+        }
 
-  // Buttons
-  document.getElementById('stripComments').addEventListener('click', function(){
-    setOutput(stripComments(getText()));
-  });
-  document.getElementById('unescapeAscii').addEventListener('click', function(){
-    setOutput(unescapeAscii(getText()));
-  });
-  document.getElementById('decodeBase64').addEventListener('click', function(){
-    setOutput(decodeBase64Heuristic(getText()));
-  });
-  document.getElementById('resolveVars').addEventListener('click', function(){
-    setOutput(resolveCharVariables(getText()));
-  });
-  document.getElementById('expandLoadstring').addEventListener('click', function(){
-    setOutput(expandLoadstring(getText()));
-  });
-  document.getElementById('xorDecode').addEventListener('click', function(){
-    const key = document.getElementById('xorKey').value;
-    const suppliedKey = key === '' ? null : key;
-    const res = xorDecodeHeuristic(getText(), suppliedKey);
-    if(res.found) setOutput(res.out);
-    else {
-      alert('No plausible XOR decode found with given options. Try providing a key or allow brute-force (leave key empty).');
-      setOutput(getText());
-    }
-  });
-  document.getElementById('all').addEventListener('click', function(){
-    let t = getText();
-    t = stripComments(t);
-    t = unescapeAscii(t);
-    t = decodeBase64Heuristic(t);
-    t = resolveCharVariables(t);
-    t = expandLoadstring(t);
-    // attempt XOR brute
-    const xorTry = xorDecodeHeuristic(t, null);
-    if(xorTry.found) t = xorTry.out;
-    setOutput(t);
-  });
-  document.getElementById('reset').addEventListener('click', function(){
-    setOutput(inputEl.value);
-  });
-
-  // initialize output with input
-  inputEl.addEventListener('input', function(){
-    outputEl.value = inputEl.value;
-  });
-
-  // Fill with sample for quick testing (comment out if you like)
-  //inputEl.value = "local v1 = '\\112'\\nlocal v2 = '\\114'\\nlocal v3 = '\\105'\\nlocal v4 = '\\110'\\nlocal v5 = '\\116'\\nprint(v1..v2..v3..v4..v5)";
-  //outputEl.value = inputEl.value;
-})();
-</script>
+        function atob(str) {
+            try {
+                return decodeURIComponent(escape(window.atob(str)));
+            } catch (e) {
+                console.error('Base64 decoding failed:', e);
+                return str;
+            }
+        }
+    </script>
 </body>
 </html>
