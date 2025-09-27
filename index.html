@@ -150,7 +150,7 @@ local function b64decode(str, tbl)
     for i = 1, #str do
         local c = string.sub(str, i, i)
         if c ~= '=' then
-            local v = string.find(tbl, c)
+            local v = string.find(tbl, c, 1, true)
             if v then
                 table.insert(t, v - 1)
             else
@@ -267,15 +267,14 @@ end)
         }
 
         function escapeLuauString(str) {
-            return str.replace(/([^\x20-\x7e])|["\\]/g, (match) => {
-                return '\\' + match.charCodeAt(0);
-            });
-        }
-
-        function xorString(str, key) {
             let result = '';
             for (let i = 0; i < str.length; i++) {
-                result += String.fromCharCode(str.charCodeAt(i) ^ key);
+                const charCode = str.charCodeAt(i);
+                if (charCode < 32 || charCode > 126 || charCode === 34 || charCode === 92) {
+                    result += `\\${charCode}`;
+                } else {
+                    result += str[i];
+                }
             }
             return result;
         }
@@ -337,7 +336,8 @@ end)
                 temp = temp.replace(/\b(local\s+|function\s+)(\w+)/g, (match, prefix, id) => {
                     if (protectedIdentifiers.has(id)) return match;
                     if (!identifierMap.has(id)) {
-                        identifierMap.set(id, randomString(15 + variableCounter++ % 10));
+                        const prefixType = prefix.includes('function') ? '_fn' : '_var';
+                        identifierMap.set(id, `${prefixType}${randomString(12 + variableCounter++ % 8)}`);
                     }
                     return `${prefix}${identifierMap.get(id)}`;
                 });
@@ -353,25 +353,28 @@ end)
                     num = parseInt(num);
                     if (num === 0) return '0';
                     if (num === 1) return '1';
-                    const ops = ['+', '-', '*', '/'];
-                    const op = ops[Math.floor(Math.random() * ops.length)];
-                    let a = Math.floor(Math.random() * num + 1);
-                    if (a === 0) a = 1;
-                    let b = num - a;
-                    if (op === '+') return `(${a} + ${b})`;
-                    if (op === '-') return `(${a + num} - ${a})`;
-                    if (op === '*') return `(${a} * ${Math.floor(num / a)})`;
-                    if (op === '/') return `(${num * a} / ${a})`;
-                    return num;
+                    const ops = [
+                        () => `(${Math.floor(Math.random() * num + 1)} + ${num - Math.floor(Math.random() * num + 1)})`,
+                        () => `(${num + Math.floor(Math.random() * 10)} - ${Math.floor(Math.random() * 10)})`,
+                        () => `(${Math.floor(num / 2)} * ${num % 2 === 0 ? 2 : 1})`,
+                        () => `(${num * Math.floor(Math.random() * 5 + 1)} / ${Math.floor(Math.random() * 5 + 1)})`,
+                        () => `math.floor(math.sqrt(${num * num} + math.random()))`,
+                        () => `bit32.bxor(${num ^ Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)})`
+                    ];
+                    return ops[Math.floor(Math.random() * ops.length)]();
                 });
             }
 
             if (strSplit || type === 'max') {
                 temp = temp.replace(/"([^"]{3,})"/g, (match, str) => {
                     const parts = [];
-                    for (let i = 0; i < str.length; ) {
+                    let i = 0;
+                    while (i < str.length) {
                         const len = Math.floor(Math.random() * 3) + 1;
                         parts.push(`"${escapeLuauString(str.substr(i, len))}"`);
+                        if (Math.random() > 0.7) {
+                            parts.push(`"${escapeLuauString(randomString(3))}"`);
+                        }
                         i += len;
                     }
                     return parts.join(' .. ');
@@ -381,9 +384,11 @@ end)
             if (type === 'base64' || type === 'max') {
                 const customTable = generateCustomBase64Table();
                 temp = temp.replace(/"([^"]*)"/g, (match, str) => {
-                    let encoded = btoa(unescape(encodeURIComponent(str)));
+                    const encoded = btoa(unescape(encodeURIComponent(str)));
                     const shuffled = encoded.replace(/./g, c => customTable[stdB64.indexOf(c)]);
-                    return `b64decode("${shuffled}", "${customTable}")`;
+                    const key = Math.floor(Math.random() * 256);
+                    const encrypted = xorString(shuffled, key);
+                    return `b64decode(xorDecode("${escapeLuauString(encrypted)}", [${key}]), "${customTable}")`;
                 });
                 outputType = type === 'base64' ? 'Base64 Strings' : outputType;
             }
@@ -397,6 +402,7 @@ end)
                     for (let i = 0; i < str.length; i++) {
                         encrypted += String.fromCharCode(str.charCodeAt(i) ^ keys[i % keyLen]);
                     }
+                    const dummyKeys = generateRandomKeys(3);
                     return `xorDecode("${escapeLuauString(encrypted)}", ${keysStr})`;
                 });
                 outputType = type === 'xor' ? 'XOR Strings' : outputType;
@@ -406,51 +412,45 @@ end)
                 const junkTemplates = [
                     `
 local ${randomString(12)} = math.random(1, 100)
-if ${randomString(12)} > 50 then
+if ${randomString(12)} > ${Math.floor(Math.random() * 50 + 25)} then
     local ${randomString(12)} = math.sin(math.pi / ${Math.floor(Math.random() * 10 + 1)});
     local ${randomString(12)} = bit32.bxor(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
-    if math.random() > 0.5 then
+    for ${randomString(12)} = 1, ${Math.floor(Math.random() * 3 + 1)} do
         local ${randomString(12)} = math.abs(math.random() - math.random());
-    else
-        local ${randomString(12)} = math.floor(math.random() * 100);
     end
 else
-    local ${randomString(12)} = math.tan(math.random());
+    local ${randomString(12)} = math.tan(math.random() * ${Math.random().toFixed(2)});
     local ${randomString(12)} = bit32.band(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});
-    local ${randomString(12)} = math.ceil(math.random() * 100);
+    if math.random() > 0.5 then
+        local ${randomString(12)} = math.ceil(math.random() * 100);
+    end
 end
 `,
                     `
 local ${randomString(12)} = math.random()
-if ${randomString(12)} < 0.3 then
-    local ${randomString(12)} = math.log(math.random() * 10)
-elseif ${randomString(12)} < 0.6 then
-    local ${randomString(12)} = math.exp(math.random())
-else
-    local ${randomString(12)} = math.sqrt(math.random() * 100)
+while ${randomString(12)} < ${Math.random().toFixed(2)} do
+    local ${randomString(12)} = math.log10(math.random() * ${Math.floor(Math.random() * 10 + 1)})
+    ${randomString(12)} = math.random()
 end
 `,
                     `
-for ${randomString(12)} = 1, math.random(3,5) do
-    local ${randomString(12)} = bit32.lshift(1, math.random(1,5))
+local ${randomString(12)} = {math.random(), math.random(), math.random()}
+table.sort(${randomString(12)}, function(a, b) return a > b end)
+`,
+                    `
+local ${randomString(12)} = function() return math.random() * ${Math.floor(Math.random() * 10 + 1)} end
+for i = 1, ${Math.floor(Math.random() * 3 + 1)} do
+    ${randomString(12)}()
 end
-`,
-                    `
-local ${randomString(12)} = {math.random(), math.random()}
-table.sort(${randomString(12)})
-`,
-                    `
-local ${randomString(12)} = function() local a = math.random(); return a * math.random() end
-${randomString(12)}()
 `
                 ];
                 const lines = temp.split('\n');
                 let newLines = [];
                 for (let line of lines) {
                     newLines.push(line);
-                    if (Math.random() > 0.4) {
+                    if (Math.random() > 0.3) {
                         const junkIndex = Math.floor(Math.random() * junkTemplates.length);
-                        const repeatCount = Math.floor(Math.random() * 4) + 1;
+                        const repeatCount = Math.floor(Math.random() * 3) + 1;
                         newLines.push(junkTemplates[junkIndex].repeat(repeatCount));
                     }
                 }
@@ -460,18 +460,18 @@ ${randomString(12)}()
 
             if (deadCode || type === 'max') {
                 const deadTemplates = [
-                    `if false then print("dead") end`,
-                    `local ${randomString(12)} = nil; if ${randomString(12)} then end`,
-                    `for i=1,0 do end`,
-                    `local ${randomString(12)} = function() return end; ${randomString(12)}()`,
-                    `if nil then end`,
-                    `local ${randomString(12)} = math.random() > 2 and true or false; if ${randomString(12)} then end`
+                    `if false then print("${randomString(10)}") end`,
+                    `local ${randomString(12)} = nil; if ${randomString(12)} then print("${randomString(5)}") end`,
+                    `for i=1,0 do ${randomString(12)}() end`,
+                    `local ${randomString(12)} = function() return math.random() end; if false then ${randomString(12)}() end`,
+                    `if nil then local ${randomString(12)} = ${Math.random().toFixed(2)} end`,
+                    `local ${randomString(12)} = math.random() > ${Math.random().toFixed(2)} and true or false; if ${randomString(12)} then end`
                 ];
                 const lines = temp.split('\n');
                 let newLines = [];
                 for (let line of lines) {
                     newLines.push(line);
-                    if (Math.random() > 0.6) {
+                    if (Math.random() > 0.5) {
                         const deadIndex = Math.floor(Math.random() * deadTemplates.length);
                         newLines.push(deadTemplates[deadIndex]);
                     }
@@ -480,18 +480,16 @@ ${randomString(12)}()
             }
 
             if (type === 'max') {
-                // Add even more layers for max
                 const extraKey = Math.floor(Math.random() * 256);
-                temp = temp.replace(/b64decode\("([^"]*)"\, "([^"]*)"\)/g, (match, shuffled, tbl) => {
-                    let extraEncrypted = xorString(shuffled, extraKey);
-                    return `b64decode(xorDecode("${escapeLuauString(extraEncrypted)}", ${extraKey}), "${tbl}")`;
-                });
-                temp = temp.replace(/xorDecode\("([^"]*)"\, \[(.*?)\]\)/g, (match, encrypted, keysStr) => {
-                    const keys = keysStr.split(', ').map(Number);
-                    const newKeys = keys.map(k => k ^ extraKey);
+                const extraKeys = generateRandomKeys(5);
+                const extraKeysStr = '[' + extraKeys.join(', ') + ']';
+                temp = temp.replace(/b64decode\(xorDecode\("([^"]*)"\, \[(.*?)\]\), "([^"]*)"\)/g, (match, encrypted, keysStr, tbl) => {
+                    let extraEncrypted = xorString(encrypted, extraKey);
+                    const newKeys = extraKeys.map(k => k ^ extraKey);
                     const newKeysStr = '[' + newKeys.join(', ') + ']';
-                    return `xorDecode(xorDecode("${escapeLuauString(encrypted)}", ${extraKey}), ${newKeysStr})`;
+                    return `b64decode(xorDecode(xorDecode("${escapeLuauString(extraEncrypted)}", ${extraKeysStr}), ${newKeysStr}), "${tbl}")`;
                 });
+                outputType = 'Obfuscate Using Everything';
             }
 
             let finalCode = temp;
@@ -514,7 +512,7 @@ ${randomString(12)}()
                 const targetSize = 5120 * 2;
                 while (junk.length < targetSize) {
                     for (let service of services) {
-                        let varname = randomString(100);
+                        let varname = randomString(50); // Reduced length to avoid excessive memory use
                         junk += `local ${varname}=game:GetService("${service}")\n`;
                         if (junk.length >= targetSize) break;
                     }
@@ -537,10 +535,12 @@ ${randomString(12)}()
             }
 
             if (maxProtection) {
-                temp = temp.replace(/b64decode\(xorDecode\("([^"]*)"\, (\d+)\)\, "([^"]*)"\)/g, (match, extraEncrypted, extraKey, tbl) => {
+                temp = temp.replace(/b64decode\(xorDecode\("([^"]*)"\, \[(.*?)\]\), "([^"]*)"\)/g, (match, encrypted, keysStr, tbl) => {
                     const doubleTbl = generateCustomBase64Table();
                     const shuffledTbl = doubleTbl.replace(/./g, c => tbl[doubleTbl.indexOf(c)]);
-                    return `b64decode(b64decode("${extraEncrypted}", "${shuffledTbl}"), "${doubleTbl}")`;
+                    const newKeys = generateRandomKeys(3);
+                    const newKeysStr = '[' + newKeys.join(', ') + ']';
+                    return `b64decode(xorDecode("${escapeLuauString(encrypted)}", ${newKeysStr}), "${shuffledTbl}")`;
                 });
             }
 
