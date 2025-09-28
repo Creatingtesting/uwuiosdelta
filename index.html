@@ -118,8 +118,7 @@
     <div class="container">
         <div class="version">V1.33</div>
         <h1 class="glow">Luau Code Deobfuscator</h1>
-        <textarea id="inputCode">l oc al pr o = tr ue
-if pr o t he n p ri nt(" pr o") en d</textarea>
+        <textarea id="inputCode" placeholder="Paste your obfuscated Luau code here..."></textarea>
         <div class="toggles">
             <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
             <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
@@ -686,6 +685,48 @@ if pr o t he n p ri nt(" pr o") en d</textarea>
             return temp;
         }
 
+        function normalizeCode(code) {
+            // Replace all whitespace/newlines with a single space to unify tokens
+            let temp = code.replace(/\s+/g, ' ');
+            // Define keywords and identifiers to normalize (case-insensitive for robustness)
+            const keywords = {
+                'l\\s*o\\s*c\\s*a\\s*l|lo\\s*ca\\s*l|loc\\s*al|lo\\s*cal': 'local',
+                'f\\s*u\\s*n\\s*c\\s*t\\s*i\\s*o\\s*n|fu\\s*nc\\s*ti\\s*on|fun\\s*cti\\s*on': 'function',
+                'r\\s*e\\s*t\\s*u\\s*r\\s*n|re\\s*tu\\s*rn|ret\\s*urn': 'return',
+                't\\s*h\\s*e\\s*n|t\\s*he\\s*n|th\\s*en': 'then',
+                'e\\s*n\\s*d|en\\s*d': 'end',
+                's\\s*t\\s*r\\s*i\\s*n\\s*g\\s*\\.\\s*c\\s*h\\s*a\\s*r|st\\s*ri\\s*ng\\s*\\.\\s*ch\\s*ar': 'string.char',
+                'c\\s*o\\s*r\\s*o\\s*u\\s*t\\s*i\\s*n\\s*e\\s*\\.\\s*w\\s*r\\s*a\\s*p|co\\s*ro\\s*ut\\s*in\\s*e\\s*\\.\\s*wr\\s*ap': 'coroutine.wrap',
+                'b\\s*y\\s*t\\s*e|by\\s*te': 'byte',
+                'p\\s*r\\s*i\\s*n\\s*t|pr\\s*in\\s*t|pri\\s*nt': 'print',
+                't\\s*r\\s*u\\s*e|tr\\s*ue': 'true',
+                'p\\s*r\\s*o|pr\\s*o': 'pro'
+            };
+            // Normalize keywords and identifiers
+            for (const [pattern, replacement] of Object.entries(keywords)) {
+                const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
+                temp = temp.replace(regex, replacement);
+            }
+            // Handle split strings (e.g., " pr o" -> "pro")
+            temp = temp.replace(/"\s*([^"]*?)\s*"/g, (match, str) => {
+                const cleaned = str.replace(/\s+/g, '');
+                return `"${cleaned}"`;
+            });
+            // Handle split identifiers not in keywords (e.g., custom variables)
+            temp = temp.replace(/(\w)\s+(\w)\b/g, '$1$2');
+            // Ensure proper spacing around operators and punctuation
+            temp = temp.replace(/(\w+)\s*([=+\-*/<>&|~^%])\s*(\w+)/g, '$1 $2 $3');
+            temp = temp.replace(/(\w+)\s*([(),;])\s*(\w+)/g, '$1$2 $3');
+            // Add newlines only after complete statements
+            temp = temp
+                .replace(/(\blocal\s+\w+\s*=\s*[^;]+)(?=\s*($|\blocal|\bif|\bfunction|\bfor|\bwhile|\bend|\belse))/g, '$1\n')
+                .replace(/(\bif\s+[^;]+then\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
+                .replace(/(\bend\b)/g, '$1\n')
+                .replace(/\n+/g, '\n')
+                .trim();
+            return temp;
+        }
+
         function deobfuscate(type) {
             try {
                 let code = document.getElementById('inputCode').value.trim();
@@ -693,22 +734,8 @@ if pr o t he n p ri nt(" pr o") en d</textarea>
                     document.getElementById('output').textContent = 'No code to deobfuscate.';
                     return;
                 }
-                let temp = code
-                    .replace(/\s+/g, ' ')
-                    .replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2')
-                    .replace(/\b(l\s*o\s*c\s*a\s*l|lo\s*ca\s*l)\b/g, 'local')
-                    .replace(/\b(f\s*u\s*n\s*c\s*t\s*i\s*o\s*n|fu\s*nc\s*ti\s*on)\b/g, 'function')
-                    .replace(/\b(r\s*e\s*t\s*u\s*r\s*n|re\s*tu\s*rn)\b/g, 'return')
-                    .replace(/\b(t\s*h\s*e\s*n|t\s*he\s*n)\b/g, 'then')
-                    .replace(/\b(e\s*n\s*d|en\s*d)\b/g, 'end')
-                    .replace(/\b(s\s*t\s*r\s*i\s*n\s*g\s*\.\s*c\s*h\s*a\s*r|st\s*ri\s*ng\s*\.\s*ch\s*ar)\b/g, 'string.char')
-                    .replace(/\b(c\s*o\s*r\s*o\s*u\s*t\s*i\s*n\s*e\s*\.\s*w\s*r\s*a\s*p|co\s*ro\s*ut\s*in\s*e\s*\.\s*wr\s*ap)\b/g, 'coroutine.wrap')
-                    .replace(/\b(b\s*y\s*t\s*e|by\s*te)\b/g, 'byte')
-                    .replace(/\b(p\s*r\s*i\s*n\s*t|pr\s*in\s*t)\b/g, 'print')
-                    .replace(/\b(t\s*r\s*u\s*e|tr\s*ue)\b/g, 'true')
-                    .replace(/\b(p\s*r\s*o|pr\s*o)\b/g, 'pro')
-                    .replace(/"\s*p\s*r\s*o\s*"/g, '"pro"')
-                    .trim();
+                // Normalize code first to remove split keywords and identifiers
+                let temp = normalizeCode(code);
                 temp = removeComments(temp);
                 const stringChar = document.getElementById('stringChar').checked;
                 const removeASCII = document.getElementById('removeASCII').checked;
@@ -723,15 +750,8 @@ if pr o t he n p ri nt(" pr o") en d</textarea>
                 const minify = document.getElementById('minify').checked;
                 const simplify = document.getElementById('simplify').checked;
                 let outputType = 'Deobfuscate All';
-                temp = temp
-                    .replace(/;/g, ';\n')
-                    .replace(/(\)\s*\{)/g, '$1\n')
-                    .replace(/function\s+(\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
-                    .replace(/then\s+([^;\n]+)/g, 'then\n$1')
-                    .replace(/end\s+([^;\n]+)/g, 'end\n$1')
-                    .replace(/do\s+([^;\n]+)/g, 'do\n$1')
-                    .replace(/return\s+([^;\n]+)/g, 'return\n$1')
-                    .replace(/([^\s])\s*([:a-zA-Z])/g, '$1\n$2');
+                // Additional normalization for specific patterns
+                temp = temp.replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2');
                 let stringCharAliases = ['string\\.char'];
                 let aliasMatches;
                 const aliasRegex = /local\s+(\w+)\s*=\s*string\.char\b/g;
