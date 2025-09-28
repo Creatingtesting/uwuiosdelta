@@ -25,11 +25,20 @@
             max-width: 90%;
             text-align: center;
             backdrop-filter: blur(10px);
+            position: relative;
         }
         h1 {
             font-size: 2em;
             margin-bottom: 20px;
             text-shadow: 0 0 10px #00ffff;
+        }
+        .version {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 1.2em;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
         }
         textarea {
             width: 100%;
@@ -107,6 +116,7 @@
 </head>
 <body>
     <div class="container">
+        <div class="version">V1.33</div>
         <h1 class="glow">Luau Code Deobfuscator</h1>
         <textarea id="inputCode" placeholder="Enter your obfuscated Luau code here..."></textarea>
         <div class="toggles">
@@ -170,7 +180,6 @@
         }
 
         function simplifyCode(code) {
-            // Split code by semicolons, newlines, and control structures
             let lines = code
                 .replace(/;/g, ';\n')
                 .replace(/(\)\s*\{)/g, '$1\n')
@@ -184,17 +193,12 @@
             let result = [];
             const blockStarters = [/function.*\(.*\)$/, /if.*then$/, /for.*do$/, /do$/];
             const blockEnders = [/^end$/];
-
             for (let line of lines) {
-                // Remove trailing semicolons
                 line = line.replace(/;$/, '');
-                // Check if line ends a block
                 if (blockEnders.some(regex => regex.test(line))) {
                     indentLevel = Math.max(0, indentLevel - 1);
                 }
-                // Add the indented line
                 result.push('    '.repeat(indentLevel) + line);
-                // Check if line starts a block
                 if (blockStarters.some(regex => regex.test(line))) {
                     indentLevel++;
                 }
@@ -205,14 +209,52 @@
         function unescapeLuauString(str) {
             try {
                 let decoded = '';
-                for (let i = 0; i < str.length; i++) {
-                    let charCode = str.charCodeAt(i);
-                    decoded += String.fromCharCode(charCode & 0xFF);
+                let i = 0;
+                while (i < str.length) {
+                    if (str[i] === '\\') {
+                        i++;
+                        if (str[i] === 'x') {
+                            i++;
+                            let hex = str.substr(i, 2);
+                            i += 2;
+                            let charCode = parseInt(hex, 16);
+                            if (!isNaN(charCode)) {
+                                decoded += String.fromCharCode(charCode);
+                            } else {
+                                decoded += '\\x' + hex;
+                                i -= 2;
+                            }
+                        } else if (/\d/.test(str[i])) {
+                            let num = '';
+                            while (/\d/.test(str[i]) && num.length < 3) {
+                                num += str[i];
+                                i++;
+                            }
+                            let charCode = parseInt(num, 10);
+                            decoded += asciiTable[charCode] || String.fromCharCode(charCode);
+                            i--;
+                        } else {
+                            switch (str[i]) {
+                                case 'a': decoded += '\a'; break;
+                                case 'b': decoded += '\b'; break;
+                                case 'f': decoded += '\f'; break;
+                                case 'n': decoded += '\n'; break;
+                                case 'r': decoded += '\r'; break;
+                                case 't': decoded += '\t'; break;
+                                case 'v': decoded += '\v'; break;
+                                case '\\': decoded += '\\'; break;
+                                case '\'': decoded += '\''; break;
+                                case '"': decoded += '"'; break;
+                                default: decoded += '\\' + str[i]; break;
+                            }
+                            i++;
+                        }
+                    } else {
+                        decoded += str[i];
+                        i++;
+                    }
                 }
-                return decoded.replace(/\\(\d{1,3})/g, (match, num) => {
-                    const charCode = parseInt(num, 10);
-                    return asciiTable[charCode] || String.fromCharCode(charCode);
-                });
+                return decoded;
             } catch (e) {
                 return str;
             }
@@ -271,6 +313,16 @@
                 } while (oldTemp !== temp);
             }
             return temp;
+        }
+
+        function decodeHexString(str) {
+            try {
+                return str.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
+                    return String.fromCharCode(parseInt(hex, 16));
+                });
+            } catch (e) {
+                return str;
+            }
         }
 
         function resolveTable(code) {
@@ -432,8 +484,19 @@
                         return match;
                     }
                 });
+                temp = temp.replace(/"((?:\\x[0-9A-Fa-f]{2})+)"/g, (match, hexStr) => {
+                    try {
+                        const decoded = decodeHexString(hexStr);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
             } while (oldTemp !== temp);
-            temp = temp.replace(/local\s+function\s+v7\s*\(v10,v11\)\s*local\s+v12\s*=\s*\{\};\s*for\s+v14=1,\s*#v10\s*do\s+v6\(v12,v0\(v4\(v1\(v2\(v10,v14,v14\s*\+\s*1\s*\)\),v1\(v2\(v11,1\s*\+\s*\(v14%\s*#v11\)\s*,1\s*\+\s*\(v14%\s*#v11\)\s*\+\s*1\s*\)\)\)%256\s*\)\);\s*end\s*return\s+v5\(v12\);\s*end/, '');
+            temp = temp.replace(/local\s+function\s+v7\s*\(v10,v11\)\s*local\s+v12\s*=\s*\{\};\s*for\s+v14=1,\s*#v10\s*do\s+v6\(v12,v0\(v4\(v1\(v2\(v10,v14,v14\s*\+\s*1\s*\)\),v1\(v2\(v11,1\s*\+\s*\(v14%\s*#v11\)\s*,1\s*\+\s*\(v14%\s*#v11\)\s*\+1\s*\)\)\)%256\s*\)\);\s*end\s*return\s+v5\(v12\);\s*end/, '');
             return temp;
         }
 
@@ -485,53 +548,100 @@
             let temp = code;
             const varAssignments = new Map();
             const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait']);
-            
-            // Map of common GetService calls to meaningful names
             const serviceNames = {
                 'Players': 'Players',
                 'RunService': 'RunService',
                 'UserInputService': 'UserInputService',
                 'Workspace': 'Workspace',
-                'ReplicatedStorage': 'ReplicatedStorage'
+                'ReplicatedStorage': 'ReplicatedStorage',
+                'ServerScriptService': 'ServerScriptService',
+                'ServerStorage': 'ServerStorage',
+                'StarterGui': 'StarterGui',
+                'StarterPlayer': 'StarterPlayer',
+                'StarterPlayerScripts': 'StarterPlayerScripts',
+                'StarterCharacterScripts': 'StarterCharacterScripts',
+                'ReplicatedFirst': 'ReplicatedFirst',
+                'CoreGui': 'CoreGui',
+                'Lighting': 'Lighting',
+                'SoundService': 'SoundService',
+                'HttpService': 'HttpService',
+                'TeleportService': 'TeleportService',
+                'DataStoreService': 'DataStoreService',
+                'MarketplaceService': 'MarketplaceService',
+                'BadgeService': 'BadgeService',
+                'AssetService': 'AssetService',
+                'PhysicsService': 'PhysicsService',
+                'TestService': 'TestService',
+                'GuiService': 'GuiService',
+                'ContextActionService': 'ContextActionService',
+                'AnalyticsService': 'AnalyticsService',
+                'CollectionService': 'CollectionService',
+                'PathfindingService': 'PathfindingService',
+                'TweenService': 'TweenService',
+                'LocalizationService': 'LocalizationService',
+                'MessagingService': 'MessagingService',
+                'NetworkClient': 'NetworkClient',
+                'NetworkServer': 'NetworkServer',
+                'Teams': 'Teams',
+                'GroupService': 'GroupService',
+                'MaterialService': 'MaterialService',
+                'InsertService': 'InsertService',
+                'Selection': 'Selection',
+                'AnimationTrack': 'AnimationTrack',
+                'AdService': 'AdService',
+                'FriendService': 'FriendService',
+                'Debris': 'Debris',
+                'SocialService': 'SocialService',
+                'PolicyService': 'PolicyService',
+                'TextService': 'TextService',
+                'VoiceChatService': 'VoiceChatService',
+                'Chat': 'Chat',
+                'TextChatService': 'TextChatService',
+                'GamePassService': 'GamePassService',
+                'ProximityPromptService': 'ProximityPromptService',
+                'RunContext': 'RunContext',
+                'StudioService': 'StudioService',
+                'VirtualInputManager': 'VirtualInputManager',
+                'VirtualUser': 'VirtualUser',
+                'VideoCaptureService': 'VideoCaptureService',
+                'MemoryStoreService': 'MemoryStoreService',
+                'BrowserService': 'BrowserService',
+                'AvatarEditorService': 'AvatarEditorService',
+                'PathService': 'PathService'
             };
-
-            // Collect variable assignments
+            const patternNames = {
+                'game.Players.LocalPlayer': 'LocalPlayer',
+                'workspace.CurrentCamera': 'Camera',
+                'false': 'isEnabled',
+                'nil': 'target',
+                '\\d+\\.\\d+': 'interval',
+                '0': 'timer',
+                'function.*\\(.*\\)$': 'findClosest',
+                '"[^"]*"': 'debugStr'
+            };
             const lines = temp.split('\n');
             for (let line of lines) {
                 const varMatch = line.match(/local\s+(\w+)\s*=\s*([^\n;]*)/);
                 if (varMatch) {
                     const [, varName, expr] = varMatch;
-                    varAssignments.set(varName, expr);
+                    varAssignments.set(varName, expr.trim());
                 }
             }
-
-            // Generate meaningful names
             const nameMap = new Map();
             varAssignments.forEach((expr, varName) => {
                 if (usedNames.has(varName)) return;
                 let newName = varName;
-                // Prioritize service names
-                if (expr.match(/game:GetService\("([^"]+)"\)/)) {
-                    const service = expr.match(/game:GetService\("([^"]+)"\)/)[1];
-                    newName = serviceNames[service] || `Service${varName}`;
-                } else if (expr.includes('LocalPlayer')) {
-                    newName = 'LocalPlayer';
-                } else if (expr.includes('CurrentCamera')) {
-                    newName = 'Camera';
-                } else if (expr === 'false') {
-                    newName = 'isAiming';
-                } else if (expr === 'nil') {
-                    newName = 'targetPlayer';
-                } else if (expr.match(/\d+\.\d+/)) {
-                    newName = 'updateInterval';
-                } else if (expr === '0') {
-                    newName = 'timer';
-                } else if (expr.match(/function.*\(.*\)$/)) {
-                    newName = 'findClosestPlayer';
-                } else if (expr.match(/"[^"]*"/)) {
-                    newName = 'debugString';
+                const serviceMatch = expr.match(/game:GetService\("([^"]+)"\)/);
+                if (serviceMatch) {
+                    newName = serviceNames[serviceMatch[1]] || `Service${serviceMatch[1]}`;
+                } else {
+                    for (const [pattern, name] of Object.entries(patternNames)) {
+                        if (expr.match(new RegExp(pattern))) {
+                            newName = name;
+                            break;
+                        }
+                    }
                 }
-                // Ensure unique names
                 let baseName = newName;
                 let counter = 1;
                 while (usedNames.has(newName)) {
@@ -541,53 +651,11 @@
                 nameMap.set(varName, newName);
                 usedNames.add(newName);
             });
-
-            // Replace variable names, handling shadowed variables
             nameMap.forEach((newName, oldName) => {
-                // Use a more precise regex to avoid partial matches
                 const regex = new RegExp(`\\b${oldName}\\b(?=\\s*[^\\w]|$)`, 'g');
                 temp = temp.replace(regex, newName);
             });
-
             return temp;
-        }
-
-        function cleanUnusedVariables(code) {
-            let lines = code.split('\n').map(line => line.trim()).filter(line => line);
-            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait']);
-            let varAssignments = new Map();
-            let functionDefs = new Set();
-
-            for (let line of lines) {
-                const varMatch = line.match(/local\s+(\w+)\s*=/);
-                const funcMatch = line.match(/local\s+function\s+(\w+)\s*\(/);
-                if (varMatch) {
-                    varAssignments.set(varMatch[1], line);
-                }
-                if (funcMatch) {
-                    functionDefs.add(funcMatch[1]);
-                }
-                const used = line.match(/\b(\w+)\b/g) || [];
-                used.forEach(v => usedVars.add(v));
-            }
-
-            let newLines = lines.filter(line => {
-                const varMatch = line.match(/local\s+(\w+)\s*=/);
-                const funcMatch = line.match(/local\s+function\s+(\w+)\s*\(/);
-                if (varMatch && !usedVars.has(varMatch[1])) {
-                    return false;
-                }
-                if (funcMatch && !usedVars.has(funcMatch[1])) {
-                    return false;
-                }
-                return true;
-            });
-
-            return newLines.join('\n');
-        }
-
-        function showSupport() {
-            alert('W.I.P');
         }
 
         function deobfuscate(type) {
@@ -597,8 +665,15 @@
                     document.getElementById('output').textContent = 'No code to deobfuscate.';
                     return;
                 }
-
-                let temp = removeComments(code);
+                let temp = code
+                    .replace(/\s+/g, ' ')
+                    .replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2')
+                    .replace(/l\s*o\s*c\s*a\s*l/g, 'local')
+                    .replace(/f\s*u\s*n\s*c\s*t\s*i\s*o\s*n/g, 'function')
+                    .replace(/t\s*h\s*e\s*n/g, 'then')
+                    .replace(/e\s*n\s*d/g, 'end')
+                    .trim();
+                temp = removeComments(temp);
                 const stringChar = document.getElementById('stringChar').checked;
                 const removeASCII = document.getElementById('removeASCII').checked;
                 const base64 = document.getElementById('base64').checked;
@@ -611,10 +686,7 @@
                 const antiDump = document.getElementById('antiDump').checked;
                 const minify = document.getElementById('minify').checked;
                 const simplify = document.getElementById('simplify').checked;
-
                 let outputType = 'Deobfuscate All';
-
-                // Preprocess to add newlines for better splitting
                 temp = temp
                     .replace(/;/g, ';\n')
                     .replace(/(\)\s*\{)/g, '$1\n')
@@ -622,24 +694,20 @@
                     .replace(/end\s+([^;\n]+)/g, 'end\n$1')
                     .replace(/do\s+([^;\n]+)/g, 'do\n$1')
                     .replace(/([^\s])\s*([:a-zA-Z])/g, '$1\n$2');
-
                 let stringCharAliases = ['string\\.char'];
                 let aliasMatches;
                 const aliasRegex = /local\s+(\w+)\s*=\s*string\.char\b/g;
                 while ((aliasMatches = aliasRegex.exec(temp)) !== null) {
                     stringCharAliases.push(aliasMatches[1]);
                 }
-
-                temp = temp.replace(/local function checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
-                temp = temp.replace(/local function checkTamper[\s\S]*?checkTamper\(\)/g, '');
-                temp = temp.replace(/spawn\(function\(\)\s*while true do\s*wait\(10\)\s*end\s*end\)/g, '');
-                temp = temp.replace(/local \w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
-
+                temp = temp.replace(/local\s+function\s+checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
+                temp = temp.replace(/local\s+function\s+checkTamper[\s\S]*?checkTamper\(\)/g, '');
+                temp = temp.replace(/spawn\(function\(\)\s*while\s+true\s+do\s+wait\(10\)\s+end\s+end\)/g, '');
+                temp = temp.replace(/local\s+\w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
                 if (antiDump || type === 'all') {
                     temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
                     temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
                 }
-
                 if (numObf || type === 'all') {
                     let oldTemp;
                     do {
@@ -649,11 +717,9 @@
                         temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
                     } while (oldTemp !== temp);
                 }
-
                 if (stringChar || type === 'all') {
                     temp = resolveTable(temp);
                 }
-
                 if (stringChar || type === 'all') {
                     let oldTemp;
                     do {
@@ -661,19 +727,15 @@
                         temp = decodeStringChar(temp, stringCharAliases);
                     } while (oldTemp !== temp);
                 }
-
                 if (stringChar || type === 'all') {
                     temp = inlineBuildFunction(temp);
                 }
-
                 if (base64 || xor || type === 'all') {
                     temp = decodeComplexString(temp);
                 }
-
                 if (strSplit || type === 'all') {
                     temp = resolveStringConcatenation(temp);
                 }
-
                 let oldTemp;
                 do {
                     oldTemp = temp;
@@ -684,7 +746,7 @@
                         const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
                         if (varMatch) {
                             const fnName = varMatch[1];
-                            const argMatch = temp.match(new RegExp(`local\\s+(${args})\\s*=\\s*"([^"]*)"`));
+                            const argMatch = temp.match(new RegExp(`local\\s+${args}\\s*=\\s*"([^"]*)"`));
                             if (argMatch) {
                                 return `${fnName}("${argMatch[2]}")`;
                             }
@@ -700,66 +762,53 @@
                         return match;
                     });
                 } while (oldTemp !== temp);
-
                 if (removeASCII || type === 'all') {
                     do {
                         oldTemp = temp;
-                        temp = temp.replace(/"((?:\\(?:\d{1,3})|[^"\\])*)"/g, (match, str) => {
+                        temp = temp.replace(/"((?:\\(?:\d{1,3}|x[0-9A-Fa-f]{2})|[^"\\])*)"/g, (match, str) => {
                             const decoded = unescapeLuauString(str);
                             return `"${decoded}"`;
                         });
                     } while (oldTemp !== temp);
                 }
-
                 if (control || deadCode || type === 'all') {
                     do {
                         oldTemp = temp;
-                        temp = temp.replace(/if true then\s*([\s\S]*?)\s*end/g, '$1');
-                        temp = temp.replace(/if false then[\s\S]*?end/g, '');
-                        temp = temp.replace(/if nil then[\s\S]*?end/g, '');
+                        temp = temp.replace(/if\s+true\s+then\s*([\s\S]*?)\s*end/g, '$1');
+                        temp = temp.replace(/if\s+false\s+then[\s\S]*?end/g, '');
+                        temp = temp.replace(/if\s+nil\s+then[\s\S]*?end/g, '');
                         temp = temp.replace(/for\s+\w+\s*=\s*1\s*,\s*0\s*do[\s\S]*?end/g, '');
-                        temp = temp.replace(/local \w+ = nil; if \w+ then[\s\S]*?end/g, '');
-                        temp = temp.replace(/local \w+ = function\(\) return end; \w+\(\)/g, '');
-                        temp = temp.replace(/local \w+ = math\.random\(\) > [\d\.]+ and true or false; if \w+ then end/g, '');
-                        temp = temp.replace(/local \w+ = math\.random\(\)\s*if \w+ < [\d\.]+ then[\s\S]*?end/g, '');
-                        temp = temp.replace(/local \w+ = {}\s*for i = 1, math\.random\(\d,\d\) do[\s\S]*?table\.sort\(\w+\)/g, '');
+                        temp = temp.replace(/local\s+\w+\s*=\s*nil;\s*if\s+\w+\s+then[\s\S]*?end/g, '');
+                        temp = temp.replace(/local\s+\w+\s*=\s*function\(\)\s*return\s+end;\s*\w+\(\)/g, '');
+                        temp = temp.replace(/local\s+\w+\s*=\s*math\.random\(\)\s*>\s*[\d\.]+;\s*if\s+\w+\s+then\s+end/g, '');
                     } while (oldTemp !== temp);
                 }
-
                 if (rename || type === 'all') {
                     temp = renameVariables(temp);
                 }
-
-                if (deadCode || type === 'all') {
-                    temp = cleanUnusedVariables(temp);
-                }
-
-                temp = removeComments(temp);
-                if (minify && !simplify) {
+                if (minify) {
                     temp = minifyCode(temp);
                 } else if (simplify) {
                     temp = simplifyCode(temp);
                 }
-
-                document.getElementById('output-type').textContent = `Deobfuscation Type: ${outputType}`;
-                document.getElementById('output').textContent = temp || 'No changes made during deobfuscation.';
-            } catch (err) {
-                console.error(err);
-                document.getElementById('output').textContent = 'Error during deobfuscation: ' + err.message;
+                document.getElementById('output-type').textContent = outputType;
+                document.getElementById('output').textContent = temp;
+            } catch (e) {
+                document.getElementById('output').textContent = `Error: ${e.message}`;
             }
         }
 
         function copyCode() {
             const output = document.getElementById('output').textContent;
-            if (output && output !== 'Deobfuscated code will appear here...') {
-                navigator.clipboard.writeText(output).then(() => {
-                    alert('Code copied to clipboard!');
-                }).catch(err => {
-                    alert('Failed to copy: ' + err);
-                });
-            } else {
-                alert('No code to copy!');
-            }
+            navigator.clipboard.writeText(output).then(() => {
+                alert('Code copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy code: ' + err);
+            });
+        }
+
+        function showSupport() {
+            alert('For support, contact the developer via GitHub or Discord.');
         }
     </script>
 </body>
