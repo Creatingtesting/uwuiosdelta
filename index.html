@@ -118,24 +118,8 @@
     <div class="container">
         <div class="version">V1.33</div>
         <h1 class="glow">Luau Code Deobfuscator</h1>
-        <textarea id="inputCode">lo ca l fu nc ti on _0 xA4()
-lo ca l _0 xB = (' a'):by te()
-lo ca l fu nc ti on _0 xC()
-re tu rn 8
-en d
-lo ca l fu nc ti on _0 xD()
-re tu rn _0 xC() - 1
-en d
-lo ca l _0 xE = _0 xB + _0 xD()
-lo ca l _0 xF = _0 xB + _0 xC()
-re tu rn st ri ng.ch ar(_0 xE, _0 xF)
-en d
-lo ca l _ ke y = st ri ng.ch ar(112,114,105,110,116)
-lo ca l _ st as h = {}
-_ st as h[_ ke y] = pr in t
-co ro uti ne.wr ap(fu nc ti on()
-_ st as h[_ ke y](_0 xA4())
-en d)()</textarea>
+        <textarea id="inputCode">l oc al pr o = tr ue
+if pr o t he n p ri nt(" pr o") en d</textarea>
         <div class="toggles">
             <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
             <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
@@ -632,6 +616,7 @@ en d)()</textarea>
             const patternNames = {
                 'game.Players.LocalPlayer': 'LocalPlayer',
                 'workspace.CurrentCamera': 'Camera',
+                'true': 'isEnabled',
                 'false': 'isEnabled',
                 'nil': 'target',
                 '\\d+\\.\\d+': 'interval',
@@ -711,14 +696,18 @@ en d)()</textarea>
                 let temp = code
                     .replace(/\s+/g, ' ')
                     .replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2')
-                    .replace(/l\s*o\s*c\s*a\s*l/g, 'local')
-                    .replace(/f\s*u\s*n\s*c\s*t\s*i\s*o\s*n/g, 'function')
-                    .replace(/r\s*e\s*t\s*u\s*r\s*n/g, 'return')
-                    .replace(/t\s*h\s*e\s*n/g, 'then')
-                    .replace(/e\s*n\s*d/g, 'end')
-                    .replace(/s\s*t\s*r\s*i\s*n\s*g\s*\.\s*c\s*h\s*a\s*r/g, 'string.char')
-                    .replace(/c\s*o\s*r\s*o\s*u\s*t\s*i\s*n\s*e\s*\.\s*w\s*r\s*a\s*p/g, 'coroutine.wrap')
-                    .replace(/b\s*y\s*t\s*e/g, 'byte')
+                    .replace(/\b(l\s*o\s*c\s*a\s*l|lo\s*ca\s*l)\b/g, 'local')
+                    .replace(/\b(f\s*u\s*n\s*c\s*t\s*i\s*o\s*n|fu\s*nc\s*ti\s*on)\b/g, 'function')
+                    .replace(/\b(r\s*e\s*t\s*u\s*r\s*n|re\s*tu\s*rn)\b/g, 'return')
+                    .replace(/\b(t\s*h\s*e\s*n|t\s*he\s*n)\b/g, 'then')
+                    .replace(/\b(e\s*n\s*d|en\s*d)\b/g, 'end')
+                    .replace(/\b(s\s*t\s*r\s*i\s*n\s*g\s*\.\s*c\s*h\s*a\s*r|st\s*ri\s*ng\s*\.\s*ch\s*ar)\b/g, 'string.char')
+                    .replace(/\b(c\s*o\s*r\s*o\s*u\s*t\s*i\s*n\s*e\s*\.\s*w\s*r\s*a\s*p|co\s*ro\s*ut\s*in\s*e\s*\.\s*wr\s*ap)\b/g, 'coroutine.wrap')
+                    .replace(/\b(b\s*y\s*t\s*e|by\s*te)\b/g, 'byte')
+                    .replace(/\b(p\s*r\s*i\s*n\s*t|pr\s*in\s*t)\b/g, 'print')
+                    .replace(/\b(t\s*r\s*u\s*e|tr\s*ue)\b/g, 'true')
+                    .replace(/\b(p\s*r\s*o|pr\s*o)\b/g, 'pro')
+                    .replace(/"\s*p\s*r\s*o\s*"/g, '"pro"')
                     .trim();
                 temp = removeComments(temp);
                 const stringChar = document.getElementById('stringChar').checked;
