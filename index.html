@@ -125,6 +125,7 @@
         <div class="buttons">
             <button onclick="deobfuscate('all')">Deobfuscate All</button>
             <button onclick="copyCode()">Copy Code</button>
+            <button onclick="showSupport()">Support</button>
         </div>
         <h2>Deobfuscated Code</h2>
         <div id="output-type">Select a deobfuscation method...</div>
@@ -155,6 +156,7 @@
                 .replace(/^\s+/gm, '')
                 .replace(/\s+$/gm, '')
                 .replace(/\n+/g, '\n')
+                .replace(/do\s+([\s\S]*?)\s+end/g, '$1')
                 .trim();
         }
 
@@ -171,6 +173,40 @@
                 const charCode = parseInt(num, 10);
                 return asciiTable[charCode] || String.fromCharCode(charCode);
             });
+        }
+
+        function evaluateNumberExpression(expr) {
+            try {
+                const safeEval = (str) => {
+                    str = str.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, (m, a, op, b) => {
+                        a = Number(a);
+                        b = Number(b);
+                        switch (op) {
+                            case '+': return a + b;
+                            case '-': return a - b;
+                            case '*': return a * b;
+                            case '/': return a / b;
+                        }
+                    });
+                    return str;
+                };
+                let oldExpr;
+                do {
+                    oldExpr = expr;
+                    expr = safeEval(expr);
+                } while (expr !== oldExpr && expr.match(/\(\s*\d+\s*[\+\-\*\/]\s*\d+\s*\)/));
+                if (!isNaN(expr)) return Number(expr);
+                if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
+                    return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
+                }
+                if (expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/)) {
+                    const [_, a, b] = expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/);
+                    return Number(a) ^ Number(b);
+                }
+                return expr;
+            } catch (e) {
+                return expr;
+            }
         }
 
         function decodeStringChar(code, aliases) {
@@ -190,6 +226,52 @@
                         return `"${decoded}"`;
                     });
                 } while (oldTemp !== temp);
+            }
+            return temp;
+        }
+
+        function resolveTable(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/local\s+(\w+)\s*=\s*\{([^\}]*)\}/g, (match, varName, values) => {
+                    const nums = values.split(',').map(v => v.trim()).filter(v => v);
+                    let resolvedValues = nums.map(v => {
+                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\(\\)]+)`));
+                        if (varMatch) {
+                            const evaluated = evaluateNumberExpression(varMatch[1]);
+                            return isNaN(evaluated) ? v : evaluated;
+                        }
+                        return v;
+                    });
+                    if (resolvedValues.every(v => !isNaN(v) && Number.isInteger(Number(v)))) {
+                        const decoded = resolvedValues.map(n => asciiTable[Number(n)] || String.fromCharCode(Number(n))).join('');
+                        return `local ${varName} = "${decoded}"`;
+                    }
+                    return match;
+                });
+            } while (oldTemp !== temp);
+            return temp;
+        }
+
+        function inlineBuildFunction(code) {
+            let temp = code;
+            const buildMatch = temp.match(/local\s+function\s+(\w+)\s*\(t\)\s*local\s+\w+\s*=\s*\{}\s*for\s+i=1,#t\s+do\s+\w+\[i\]\s*=\s*string\.char\(t\[i\]\)\s*end\s*return\s+table\.concat\(\w+\)\s*end/);
+            if (buildMatch) {
+                const buildName = buildMatch[1];
+                let oldTemp;
+                do {
+                    oldTemp = temp;
+                    temp = temp.replace(new RegExp(`\\b${buildName}\\(\\s*(\\w+)\\s*\\)`, 'g'), (match, tableVar) => {
+                        const tableMatch = temp.match(new RegExp(`local\\s+${tableVar}\\s*=\\s*"([^"]*)"`));
+                        if (tableMatch) {
+                            return `"${tableMatch[1]}"`;
+                        }
+                        return match;
+                    });
+                } while (oldTemp !== temp);
+                temp = temp.replace(/local\s+function\s+\w+\s*\(t\)\s*local\s+\w+\s*=\s*\{}\s*for\s+i=1,#t\s+do\s+\w+\[i\]\s*=\s*string\.char\(t\[i\]\)\s*end\s*return\s+table\.concat\(\w+\)\s*end/, '');
             }
             return temp;
         }
@@ -238,39 +320,55 @@
             return result.join('');
         }
 
-        function evaluateNumberExpression(expr) {
-            try {
-                if (expr.match(/^\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)$/)) {
-                    return expr.replace(/^\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)$/, (m, a, op, b) => {
-                        a = Number(a);
-                        b = Number(b);
-                        switch (op) {
-                            case '+': return a + b;
-                            case '-': return a - b;
-                            case '*': return a * b;
-                            case '/': return a / b;
+        function decodeComplexString(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/"([A-Za-z0-9+\/=]+)"/g, (match, str) => {
+                    try {
+                        const standardTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                        const decoded = jsB64Decode(str, standardTable);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
                         }
-                    });
-                }
-                if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
-                    return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
-                }
-                if (expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/)) {
-                    const [_, a, b] = expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/);
-                    return Number(a) ^ Number(b);
-                }
-                return expr;
-            } catch (e) {
-                return expr;
-            }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                temp = temp.replace(/b64decode\("([A-Za-z0-9+\/=]+)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
+                    try {
+                        const decoded = jsB64Decode(str, tbl);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
+                    try {
+                        const keys = keysStr.split(',').map(k => Number(k.trim()));
+                        const decoded = jsXorDecode(unescapeLuauString(str), keys);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+            } while (oldTemp !== temp);
+            return temp;
         }
 
         function cleanUnusedVariables(code) {
             let lines = code.split('\n').map(line => line.trim()).filter(line => line);
-            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table']); // Exclude built-ins
+            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table']);
             let varAssignments = new Map();
 
-            // Collect variable usage and assignments
             for (let line of lines) {
                 const varMatch = line.match(/local\s+(\w+)\s*=/);
                 if (varMatch) {
@@ -280,7 +378,6 @@
                 used.forEach(v => usedVars.add(v));
             }
 
-            // Filter out unused variable assignments
             let newLines = lines.filter(line => {
                 const varMatch = line.match(/local\s+(\w+)\s*=/);
                 if (varMatch && !usedVars.has(varMatch[1])) {
@@ -290,6 +387,10 @@
             });
 
             return newLines.join('\n');
+        }
+
+        function showSupport() {
+            alert('W.I.P');
         }
 
         function deobfuscate(type) {
@@ -315,7 +416,6 @@
 
                 let outputType = 'Deobfuscate All';
 
-                // Collect string.char aliases
                 let stringCharAliases = ['string\\.char'];
                 let aliasMatches;
                 const aliasRegex = /local\s+(\w+)\s*=\s*string\.char\b/g;
@@ -323,23 +423,30 @@
                     stringCharAliases.push(aliasMatches[1]);
                 }
 
-                // Remove Anti-Tamper and Hide Source
                 temp = temp.replace(/local function checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
                 temp = temp.replace(/local function checkTamper[\s\S]*?checkTamper\(\)/g, '');
-
-                // Remove 24/7 Protection
                 temp = temp.replace(/spawn\(function\(\)\s*while true do\s*wait\(10\)\s*end\s*end\)/g, '');
-
-                // Remove Over 5KB Junk
                 temp = temp.replace(/local \w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
 
-                // Anti-Dump Removal
                 if (antiDump || type === 'all') {
                     temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
                     temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
                 }
 
-                // String.char Decoding
+                if (numObf || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
+                    } while (oldTemp !== temp);
+                }
+
+                if (stringChar || type === 'all') {
+                    temp = resolveTable(temp);
+                }
+
                 if (stringChar || type === 'all') {
                     let oldTemp;
                     do {
@@ -348,20 +455,24 @@
                     } while (oldTemp !== temp);
                 }
 
-                // _G Function Call Resolution
+                if (stringChar || type === 'all') {
+                    temp = inlineBuildFunction(temp);
+                }
+
+                if (base64 || xor || type === 'all') {
+                    temp = decodeComplexString(temp);
+                }
+
                 let oldTemp;
                 do {
                     oldTemp = temp;
-                    // Handle _G["string"](...)
                     temp = temp.replace(/_G\[(".*?")\]\((.*?)\)/g, (match, fn, args) => {
                         return `${fn.slice(1, -1)}(${args})`;
                     });
-                    // Handle _G[variable](...)
                     temp = temp.replace(/_G\[(\w+)\]\((.*?)\)/g, (match, varName, args) => {
                         const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
                         if (varMatch) {
                             const fnName = varMatch[1];
-                            // Check if args is a variable with a string value
                             const argMatch = temp.match(new RegExp(`local\\s+(${args})\\s*=\\s*"([^"]*)"`));
                             if (argMatch) {
                                 return `${fnName}("${argMatch[2]}")`;
@@ -372,7 +483,6 @@
                     });
                 } while (oldTemp !== temp);
 
-                // ASCII Escape Sequences
                 if (removeASCII || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -383,36 +493,6 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Base64 Decoding
-                if (base64 || type === 'all') {
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/b64decode\(xorDecode\("([^"]*)",\s*\[([^\]]*)\]\),\s*"([^"]*)"\)/g, (match, str, keysStr, tbl) => {
-                            const keys = keysStr.split(',').map(k => Number(k.trim()));
-                            const xorDecoded = jsXorDecode(unescapeLuauString(str), keys);
-                            const decoded = jsB64Decode(xorDecoded, tbl);
-                            return `"${decoded}"`;
-                        });
-                        temp = temp.replace(/b64decode\("([^"]*)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
-                            const decoded = jsB64Decode(unescapeLuauString(str), tbl);
-                            return `"${decoded}"`;
-                        });
-                    } while (oldTemp !== temp);
-                }
-
-                // XOR Decoding
-                if (xor || type === 'all') {
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
-                            const keys = keysStr.split(',').map(k => Number(k.trim()));
-                            const decoded = jsXorDecode(unescapeLuauString(str), keys);
-                            return `"${decoded}"`;
-                        });
-                    } while (oldTemp !== temp);
-                }
-
-                // String Desplitting
                 if (strSplit || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -423,17 +503,6 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Number Deobfuscation
-                if (numObf || type === 'all') {
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
-                        temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
-                        temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
-                    } while (oldTemp !== temp);
-                }
-
-                // Variable Renaming
                 if (rename || type === 'all') {
                     let identifierMap = new Map();
                     let variableCounter = 1;
@@ -449,7 +518,6 @@
                     });
                 }
 
-                // Control Flow and Dead Code Cleanup
                 if (control || deadCode || type === 'all') {
                     do {
                         oldTemp = temp;
@@ -464,12 +532,10 @@
                     } while (oldTemp !== temp);
                 }
 
-                // Clean unused variables
                 if (deadCode || type === 'all') {
                     temp = cleanUnusedVariables(temp);
                 }
 
-                // Final cleanup
                 temp = removeComments(temp);
                 if (minify) {
                     temp = minifyCode(temp);
