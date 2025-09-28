@@ -188,19 +188,16 @@
 
         function unescapeLuauString(str) {
             try {
-                // Convert escaped sequences (e.g., "\227") to raw bytes
-                let decoded = str.replace(/\\(\d{1,3})/g, (match, num) => {
+                // Convert escaped sequences (e.g., "\227") to raw characters
+                return str.replace(/\\(\d{1,3})/g, (match, num) => {
                     const charCode = parseInt(num, 10);
-                    return String.fromCharCode(charCode);
+                    if (charCode >= 0 && charCode <= 255) {
+                        return String.fromCharCode(charCode);
+                    }
+                    return match;
                 });
-                // Handle ASCII-encoded strings (e.g., "ãÖÕ...")
-                let result = '';
-                for (let i = 0; i < decoded.length; i++) {
-                    let charCode = decoded.charCodeAt(i);
-                    result += String.fromCharCode(charCode & 0xFF);
-                }
-                return result;
             } catch (e) {
+                console.error('unescapeLuauString error:', e);
                 return str;
             }
         }
@@ -404,11 +401,14 @@
                     }
                 });
                 // Handle v7("str", "key") with escaped strings
-                temp = temp.replace(/v7\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)/g, (match, str, key) => {
+                temp = temp.replace(/v7\("((?:[^"\\]|\\.)*?)",\s*"((?:[^"\\]|\\.)*?)"\)/g, (match, str, key) => {
                     try {
+                        console.log('v7 match:', { str, key }); // Debug
                         let decodedStr = unescapeLuauString(str);
                         let decodedKey = unescapeLuauString(key);
+                        console.log('Decoded:', { decodedStr, decodedKey }); // Debug
                         let decoded = customXorDecode(decodedStr, decodedKey);
+                        console.log('XOR result:', decoded); // Debug
                         if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
                             return `"${decoded}"`;
                         }
@@ -419,8 +419,8 @@
                     }
                 });
             } while (oldTemp !== temp);
-            // Remove v7 function definition
-            temp = temp.replace(/local\s+function\s+v7\s*\(v10,v11\)\s*local\s+v12\s*=\s*\{.*?\};\s*for\s+v14=1,\s*#v10\s*do\s+v6\(v12,v0\(v4\(v1\(v2\(v10,v14,v14\s*\+\s*1\s*\)\),v1\(v2\(v11,1\s*\+\s*\(v14%\s*#v11\)\s*,1\s*\+\s*\(v14%\s*#v11\)\s*\+\s*1\s*\)\)\)%256\s*\)\);\s*end\s*return\s+v5\(v12\);\s*end/, '');
+            // Remove v7 function definition (more permissive regex)
+            temp = temp.replace(/local\s+function\s+v7\s*\(v10\s*,\s*v11\s*\)\s*local\s+v12\s*=\s*\{.*?\}\s*;\s*for\s+v14\s*=\s*1\s*,\s*#v10\s*do\s*v6\s*\(\s*v12\s*,\s*v0\s*\(\s*v4\s*\(\s*v1\s*\(\s*v2\s*\(\s*v10\s*,\s*v14\s*,\s*v14\s*\+\s*1\s*\)\s*\)\s*,\s*v1\s*\(\s*v2\s*\(\s*v11\s*,\s*1\s*\+\s*\(\s*v14\s*%\s*#v11\s*\)\s*,\s*1\s*\+\s*\(\s*v14\s*%\s*#v11\s*\)\s*\+\s*1\s*\)\s*\)\s*\)\s*%\s*256\s*\)\s*\)\s*\)\s*;\s*end\s*return\s+v5\s*\(\s*v12\s*\)\s*;\s*end\s*;?/g, '');
             return temp;
         }
 
@@ -473,7 +473,6 @@
             let varMap = new Map();
             let varCount = 0;
 
-            // Identify variables to rename
             const varRegex = /local\s+(\w+)\s*(?:=|\b)/g;
             let usedNames = new Set(['string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait']);
             let match;
@@ -497,7 +496,6 @@
                 }
             }
 
-            // Replace variable names
             for (let [oldName, newName] of varMap) {
                 const regex = new RegExp(`\\b${oldName}\\b`, 'g');
                 temp = temp.replace(regex, newName);
@@ -689,7 +687,10 @@
                     temp = simplifyCode(temp);
                 }
 
-                if (temp === code || temp === '') {
+                // Normalize whitespace for comparison
+                const normalizedInput = code.replace(/\s+/g, ' ').trim();
+                const normalizedOutput = temp.replace(/\s+/g, ' ').trim();
+                if (normalizedOutput === normalizedInput || temp === '') {
                     document.getElementById('output').textContent = 'No changes made during deobfuscation.';
                 } else {
                     document.getElementById('output-type').textContent = `Deobfuscation Type: ${outputType}`;
