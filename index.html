@@ -315,7 +315,17 @@
             for (let i = 0; i < str.length; i++) {
                 let char = str.charCodeAt(i);
                 let key = keys[i % keyLen];
-                result.push(String.fromCharCode(char ^ key));
+                result.push(String.fromCharCode((char ^ key) % 256));
+            }
+            return result.join('');
+        }
+
+        function customXorDecode(str, key) {
+            let result = [];
+            for (let i = 0; i < str.length; i++) {
+                let charCode = str.charCodeAt(i);
+                let keyCode = key.charCodeAt(i % key.length);
+                result.push(String.fromCharCode((charCode ^ keyCode) % 256));
             }
             return result.join('');
         }
@@ -325,6 +335,7 @@
             let oldTemp;
             do {
                 oldTemp = temp;
+                // Handle standard Base64
                 temp = temp.replace(/"([A-Za-z0-9+\/=]+)"/g, (match, str) => {
                     try {
                         const standardTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -337,6 +348,7 @@
                         return match;
                     }
                 });
+                // Handle b64decode("str", "table")
                 temp = temp.replace(/b64decode\("([A-Za-z0-9+\/=]+)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
                     try {
                         const decoded = jsB64Decode(str, tbl);
@@ -348,10 +360,26 @@
                         return match;
                     }
                 });
+                // Handle xorDecode("str", [keys])
                 temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
                     try {
                         const keys = keysStr.split(',').map(k => Number(k.trim()));
                         const decoded = jsXorDecode(unescapeLuauString(str), keys);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                // Handle v7("str", "key")
+                temp = temp.replace(/v7\("([^"]*)",\s*"([^"]*)"\)/g, (match, str, key) => {
+                    try {
+                        // Convert ASCII-encoded strings to raw bytes
+                        const decodedStr = unescapeLuauString(str);
+                        const decodedKey = unescapeLuauString(key);
+                        const decoded = customXorDecode(decodedStr, decodedKey);
                         if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
                             return `"${decoded}"`;
                         }
