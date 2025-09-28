@@ -121,6 +121,7 @@
             <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
             <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
             <label><input type="checkbox" id="minify"> Minify Output</label>
+            <label><input type="checkbox" id="simplify" checked> Simplify Output</label>
         </div>
         <div class="buttons">
             <button onclick="deobfuscate('all')">Deobfuscate All</button>
@@ -168,11 +169,42 @@
                 .replace(/^\s+|\s+$/g, '');
         }
 
+        function simplifyCode(code) {
+            let lines = code.split(';').map(line => line.trim()).filter(line => line);
+            let indentLevel = 0;
+            let result = [];
+            for (let line of lines) {
+                if (line.match(/end$/)) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                }
+                result.push('    '.repeat(indentLevel) + line);
+                if (line.match(/function.*\(.*\)$/)) {
+                    indentLevel++;
+                }
+            }
+            return result.join('\n');
+        }
+
         function unescapeLuauString(str) {
-            return str.replace(/\\(\d{1,3})/g, (match, num) => {
-                const charCode = parseInt(num, 10);
-                return asciiTable[charCode] || String.fromCharCode(charCode);
-            });
+            try {
+                // Handle ASCII-encoded strings (e.g., "ãÖÕ..." to raw bytes)
+                let decoded = '';
+                for (let i = 0; i < str.length; i++) {
+                    let charCode = str.charCodeAt(i);
+                    if (charCode > 127) {
+                        // Convert to equivalent raw byte (assuming Luau escape)
+                        decoded += String.fromCharCode(charCode & 0xFF);
+                    } else {
+                        decoded += str[i];
+                    }
+                }
+                return decoded.replace(/\\(\d{1,3})/g, (match, num) => {
+                    const charCode = parseInt(num, 10);
+                    return asciiTable[charCode] || String.fromCharCode(charCode);
+                });
+            } catch (e) {
+                return str;
+            }
         }
 
         function evaluateNumberExpression(expr) {
@@ -492,6 +524,7 @@
                 const deadCode = document.getElementById('deadCode').checked;
                 const antiDump = document.getElementById('antiDump').checked;
                 const minify = document.getElementById('minify').checked;
+                const simplify = document.getElementById('simplify').checked;
 
                 let outputType = 'Deobfuscate All';
 
@@ -602,8 +635,10 @@
                 }
 
                 temp = removeComments(temp);
-                if (minify) {
+                if (minify && !simplify) {
                     temp = minifyCode(temp);
+                } else if (simplify) {
+                    temp = simplifyCode(temp);
                 }
 
                 document.getElementById('output-type').textContent = `Deobfuscation Type: ${outputType}`;
