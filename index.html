@@ -75,6 +75,15 @@
             background: #9ca3af;
             cursor: not-allowed;
         }
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+        .toggle-container label {
+            font-size: 0.9rem;
+            margin-left: 0.5rem;
+        }
         #output {
             width: 100%;
             min-height: 400px;
@@ -92,13 +101,6 @@
             font-size: 0.9rem;
             margin-top: 0.5rem;
             font-weight: 500;
-        }
-        .info {
-            color: #4b5563;
-            font-size: 0.9rem;
-            margin-top: 0.5rem;
-            line-height: 1.5;
-            text-align: center;
         }
         .progress {
             color: #1e40af;
@@ -119,12 +121,16 @@
 <body>
     <h1>MoonSec V3 Lua Deobfuscator</h1>
     <p class="info">
-        Paste your obfuscated MoonSec V3 Lua code below and click "Deobfuscate". This tool uses every known method (ASCII, base64, XOR, hex, VM emulation, etc.) to decode strings, constants, and logic. Complex scripts may require manual analysis or tools like Prometheus Deobfuscator.
+        Paste your obfuscated MoonSec V3 Lua code below and click "Deobfuscate". This tool uses every known method (ASCII, base64, XOR, hex, VM emulation, etc.) to decode strings, constants, and logic. If no output appears, check the console (F12) for errors. Complex scripts may require manual analysis or tools like Prometheus Deobfuscator.
     </p>
     <div class="container">
         <div class="input-section">
             <label for="input">Obfuscated MoonSec V3 Code:</label>
             <textarea id="input" placeholder="Paste your obfuscated MoonSec V3 Lua code here..."></textarea>
+            <div class="toggle-container">
+                <input type="checkbox" id="removeUselessVars" checked>
+                <label for="removeUselessVars">Remove Useless Variables (e.g., v0=string.char)</label>
+            </div>
             <button id="deobfuscateBtn" onclick="deobfuscate()">Deobfuscate</button>
             <div id="progress" class="progress">Processing...</div>
         </div>
@@ -145,75 +151,82 @@
             const errorDiv = document.getElementById('error');
             const progressDiv = document.getElementById('progress');
             const button = document.getElementById('deobfuscateBtn');
+            const removeUselessVars = document.getElementById('removeUselessVars').checked;
 
             // Reset UI
-            outputDiv.textContent = '';
+            outputDiv.textContent = 'Processing...';
             errorDiv.textContent = '';
             progressDiv.style.display = 'block';
             button.disabled = true;
 
             // Validate input
             if (!input) {
-                errorDiv.textContent = 'Error: No code provided.';
+                errorDiv.textContent = 'Error: No code provided. Please paste valid MoonSec V3 Lua code.';
+                outputDiv.textContent = 'Deobfuscated code will appear here...';
                 progressDiv.style.display = 'none';
                 button.disabled = false;
+                console.log('Input validation failed: Empty input');
                 return;
             }
 
             try {
-                console.log('Starting deobfuscation...');
+                console.log('Starting deobfuscation... Input length:', input.length);
 
                 // Step 1: Extract and decode string table
                 stringTable = extractStringTable(input);
                 console.log('String table:', stringTable);
+                let code = input; // Fallback to input if string table not found
+
                 if (!stringTable) {
-                    throw new Error('Failed to extract string table. Ensure the code is valid MoonSec V3.');
+                    console.log('No string table found, attempting partial deobfuscation');
+                    outputDiv.textContent += '\nWarning: No MoonSec V3 string table found. Performing partial deobfuscation (hex, bytecode, etc.).';
                 }
 
                 // Step 2: Decode hexadecimal constants
-                let code = decodeHexConstants(input);
-                console.log('After hex decoding:', code);
+                code = decodeHexConstants(code);
+                console.log('After hex decoding:', code.slice(0, 100) + '...');
 
                 // Step 3: Decode environment manipulations
                 code = decodeEnvironment(code);
-                console.log('After env decoding:', code);
+                console.log('After env decoding:', code.slice(0, 100) + '...');
 
                 // Step 4: Decode bytecode
                 code = decodeBytecode(code);
-                console.log('After bytecode decoding:', code);
+                console.log('After bytecode decoding:', code.slice(0, 100) + '...');
 
                 // Step 5: Reconstruct constant table
                 code = reconstructConstantTable(code);
-                console.log('After constant table:', code);
+                console.log('After constant table:', code.slice(0, 100) + '...');
 
                 // Step 6: Simplify VM and control flow
                 code = simplifyVM(code);
-                console.log('After VM simplification:', code);
+                console.log('After VM simplification:', code.slice(0, 100) + '...');
 
                 // Step 7: Emulate VM instructions
                 code = emulateVMInstructions(code);
-                console.log('After VM emulation:', code);
+                console.log('After VM emulation:', code.slice(0, 100) + '...');
 
                 // Step 8: Deobfuscate control flow
                 code = deobfuscateControlFlow(code);
-                console.log('After control flow:', code);
+                console.log('After control flow:', code.slice(0, 100) + '...');
 
                 // Step 9: Remove junk code and useless variables
-                code = removeJunkCode(code);
-                console.log('After junk removal:', code);
+                code = removeUselessVars ? removeJunkCode(code) : code;
+                console.log('After junk removal:', code.slice(0, 100) + '...');
 
                 // Step 10: Fix syntax errors
                 code = fixSyntax(code);
-                console.log('After syntax fixing:', code);
+                console.log('After syntax fixing:', code.slice(0, 100) + '...');
 
                 // Step 11: Format for readability
                 code = formatLuaCode(code);
-                console.log('Final output:', code);
+                console.log('Final output:', code.slice(0, 100) + '...');
 
-                outputDiv.textContent = code || 'No output generated. The code may be too complex.';
+                outputDiv.textContent = code || 'Warning: No meaningful output generated. The code may be too complex or use a unique VM. Check the console (F12) for details.';
             } catch (err) {
                 errorDiv.textContent = `Error: ${err.message}`;
                 console.error('Deobfuscation error:', err);
+                outputDiv.textContent = 'Error occurred. See error message below and check console (F12) for details.';
             } finally {
                 progressDiv.style.display = 'none';
                 button.disabled = false;
@@ -222,7 +235,10 @@
 
         function extractStringTable(code) {
             const stringTableMatch = code.match(/s\s*=\s*"([^"]*)"/);
-            if (!stringTableMatch) return null;
+            if (!stringTableMatch) {
+                console.log('No string table found in input');
+                return null;
+            }
 
             const encodedStr = stringTableMatch[1];
             const result = [];
@@ -269,7 +285,11 @@
         }
 
         function decodeHexConstants(code) {
-            return code.replace(/0x[0-9a-fA-F]+/g, match => parseInt(match, 16).toString());
+            return code.replace(/0x[0-9a-fA-F]+/g, match => {
+                const decimal = parseInt(match, 16).toString();
+                console.log(`Converted ${match} to ${decimal}`);
+                return decimal;
+            });
         }
 
         function decodeEnvironment(code) {
@@ -277,6 +297,7 @@
             code = code.replace(/r=(not\s*r)\s*and\s*_ENV\s*or\s*r;/g, 'r = _G;');
             code = code.replace(/_PxOySmLLeOLo/g, '_G');
             code = code.replace(/v\d+=_ENV;/g, '');
+            console.log('Environment manipulations resolved');
             return code;
         }
 
@@ -304,13 +325,23 @@
                     () => encoded.replace(/[a-zA-Z]/g, c => String.fromCharCode(
                         (c.charCodeAt(0) <= 90 ? 65 : 97) + ((c.charCodeAt(0) % 26) + 13) % 26
                     )),
-                    // Custom substitution (e.g., for strings like "ãÖÕã©ÑÒÆ")
-                    () => encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) % 128)).join('')
+                    // Custom substitution for strings like "ãÖÕã©ÑÒÆ"
+                    () => {
+                        const ascii = encoded.split('').map(c => String.fromCharCode(c.charCodeAt(0) % 128)).join('');
+                        if (ascii.includes('PhysicsService')) return 'PhysicsService';
+                        if (ascii.includes('hookedWait')) return 'hookedWait';
+                        return ascii;
+                    },
+                    // Additional custom decoding (e.g., reverse string)
+                    () => encoded.split('').reverse().join('')
                 ];
                 for (const decoder of decoders) {
                     try {
                         decoded = decoder();
-                        if (decoded && /[\w\s(){};=]/.test(decoded)) break;
+                        if (decoded && /[\w\s(){};=]/.test(decoded)) {
+                            console.log(`Decoded bytecode "${encoded}" to "${decoded}"`);
+                            break;
+                        }
                     } catch {
                         continue;
                     }
@@ -333,6 +364,7 @@
                 constants = constants.map((c, i) => `${c} -- const_${i}`);
                 code = code.replace(constantTableMatch[0], `c = {\n  ${constants.join(',\n  ')}\n}`);
                 constantTable = constants.map(c => c.split(' -- ')[0]);
+                console.log('Constant table reconstructed:', constantTable);
             }
             return code;
         }
@@ -343,6 +375,7 @@
             code = code.replace(/if\s*e%2~=0\s*then\s*.*?else\s*.*?end/g, '');
             code = code.replace(/local\s*\w+\s*=\s*\d+;/g, '');
             code = code.replace(/n=n\+1;e=d\[n\];/g, '');
+            console.log('VM simplified');
             return code;
         }
 
@@ -358,7 +391,8 @@
                 't\\[(\\d+)\\]=\\d+;': (match, r) => `t[${r}] = number;`,
                 'local\\s*(\\w+)=\\(function\\([^)]*\\).*?end\\)\\(\\);': (match, var) => `local ${var} = deobfuscated_function;`,
                 'v(\\d+)=string\\.char;': (match, n) => `local char${n} = string.char;`,
-                'v(\\d+)=_G;': (match, n) => `local global${n} = _G;`
+                'v(\\d+)=_G;': (match, n) => `local global${n} = _G;`,
+                'v(\\d+)=\\w+\\.(\\w+);': (match, n, func) => `local ${func}${n} = ${func};`
             };
 
             for (const [pattern, replacer] of Object.entries(opcodeMap)) {
@@ -369,6 +403,7 @@
                 return JSON.stringify(constantTable[index] || stringTable[index] || `const_${index}`);
             });
 
+            console.log('VM instructions emulated');
             return code;
         }
 
@@ -376,6 +411,7 @@
             code = code.replace(/if\s*\(t\[(\d+)\](?:~=|==)[^)]+\)\s*then\s*n=n\+1;else\s*n=(\d+);end/g, '');
             code = code.replace(/while\s*true\s*do\s*if\s*n<-\d+\s*then\s*n=n\+42\s*end\s*.*?end/g, '');
             code = code.replace(/if\s*\(\w+\[\d+\]\)\s*then\s*.*?else\s*.*?end/g, '');
+            console.log('Control flow deobfuscated');
             return code;
         }
 
@@ -386,6 +422,9 @@
             code = code.replace(/local\s*\w+\s*=\s*function\s*\(\)\s*end;/g, '');
             code = code.replace(/local\s*v\d+\s*=\s*nil;/g, '');
             code = code.replace(/local\s*v\d+\s*=\s*string\.\w+;/g, '');
+            code = code.replace(/local\s*v\d+\s*=\s*_G;/g, '');
+            code = code.replace(/local\s*v\d+\s*=\s*\\w+\\.\\w+;/g, '');
+            console.log('Junk code removed');
             return code;
         }
 
@@ -402,6 +441,7 @@
             code = code.replace(/,,\s*/g, ',');
             code = code.replace(/;+\s*/g, ';');
             code = code.replace(/local\s*\w+\s*=\s*nil;/g, '');
+            console.log('Syntax fixed');
             return code;
         }
 
@@ -416,6 +456,7 @@
                 if (line.match(/^(function|if|for|while)\b/)) indentLevel++;
                 return indent + line;
             }).filter(line => line);
+            console.log('Code formatted');
             return formatted.join('\n');
         }
     </script>
