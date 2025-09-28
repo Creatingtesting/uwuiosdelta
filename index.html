@@ -118,7 +118,24 @@
     <div class="container">
         <div class="version">V1.33</div>
         <h1 class="glow">Luau Code Deobfuscator</h1>
-        <textarea id="inputCode" placeholder="Enter your obfuscated Luau code here..."></textarea>
+        <textarea id="inputCode">lo ca l fu nc ti on _0 xA4()
+lo ca l _0 xB = (' a'):by te()
+lo ca l fu nc ti on _0 xC()
+re tu rn 2 ^ 3
+en d
+lo ca l fu nc ti on _0 xD()
+re tu rn _0 xC() - 1
+en d
+lo ca l _0 xE = _0 xB + _0 xD()
+lo ca l _0 xF = _0 xB + _0 xC()
+re tu rn st ri ng.ch ar(_0 xE, _0 xF)
+en d
+lo ca l _ ke y = st ri ng.ch ar(112,114,105,110,116)
+lo ca l _ st as h = {}
+_ st as h[_ ke y] = pr in t
+co ro uti ne.wr ap(fu nc ti on()
+_ st as h[_ ke y](_0 xA4())
+en d)()</textarea>
         <div class="toggles">
             <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
             <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
@@ -183,15 +200,17 @@
             let lines = code
                 .replace(/;/g, ';\n')
                 .replace(/(\)\s*\{)/g, '$1\n')
+                .replace(/function\s+(\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
                 .replace(/then\s+([^;\n]+)/g, 'then\n$1')
                 .replace(/end\s+([^;\n]+)/g, 'end\n$1')
                 .replace(/do\s+([^;\n]+)/g, 'do\n$1')
+                .replace(/return\s+([^;\n]+)/g, 'return\n$1')
                 .split('\n')
                 .map(line => line.trim())
                 .filter(line => line);
             let indentLevel = 0;
             let result = [];
-            const blockStarters = [/function.*\(.*\)$/, /if.*then$/, /for.*do$/, /do$/];
+            const blockStarters = [/function.*\(.*\)$/, /if.*then$/, /for.*do$/, /do$/, /else$/, /elseif.*then$/];
             const blockEnders = [/^end$/];
             for (let line of lines) {
                 line = line.replace(/;$/, '');
@@ -273,13 +292,14 @@
                             case '/': return a / b;
                         }
                     });
+                    str = str.replace(/(\d+)\s*\^\s*(\d+)/g, (m, a, b) => Math.pow(Number(a), Number(b)));
                     return str;
                 };
                 let oldExpr;
                 do {
                     oldExpr = expr;
                     expr = safeEval(expr);
-                } while (expr !== oldExpr && expr.match(/\(\s*\d+\s*[\+\-\*\/]\s*\d+\s*\)/));
+                } while (expr !== oldExpr && expr.match(/[\(\)\+\-\*\/\^]/));
                 if (!isNaN(expr)) return Number(expr);
                 if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
                     return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
@@ -333,7 +353,7 @@
                 temp = temp.replace(/local\s+(\w+)\s*=\s*\{([^\}]*)\}/g, (match, varName, values) => {
                     const nums = values.split(',').map(v => v.trim()).filter(v => v);
                     let resolvedValues = nums.map(v => {
-                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\(\\)]+)`));
+                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\^\\(\\)]+)`));
                         if (varMatch) {
                             const evaluated = evaluateNumberExpression(varMatch[1]);
                             return isNaN(evaluated) ? v : evaluated;
@@ -547,7 +567,7 @@
         function renameVariables(code) {
             let temp = code;
             const varAssignments = new Map();
-            const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait']);
+            const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait', 'print', 'coroutine']);
             const serviceNames = {
                 'Players': 'Players',
                 'RunService': 'RunService',
@@ -616,8 +636,8 @@
                 'nil': 'target',
                 '\\d+\\.\\d+': 'interval',
                 '0': 'timer',
-                'function.*\\(.*\\)$': 'findClosest',
-                '"[^"]*"': 'debugStr'
+                'function.*\\(.*\\)$': 'runFunction',
+                '"[^"]*"': 'message'
             };
             const lines = temp.split('\n');
             for (let line of lines) {
@@ -658,6 +678,29 @@
             return temp;
         }
 
+        function inlineFunctions(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/local\s+function\s+(\w+)\s*\(\)\s*return\s+([^;]*);?\s*end/g, (match, funcName, returnValue) => {
+                    const evaluated = evaluateNumberExpression(returnValue);
+                    if (!isNaN(evaluated) || returnValue.match(/^"[^"]*"$/)) {
+                        return `local ${funcName} = ${evaluated || returnValue}`;
+                    }
+                    return match;
+                });
+                temp = temp.replace(/\b(\w+)\(\)/g, (match, funcName) => {
+                    const varMatch = temp.match(new RegExp(`local\\s+${funcName}\\s*=\\s*([^;\n]*)`));
+                    if (varMatch) {
+                        return varMatch[1];
+                    }
+                    return match;
+                });
+            } while (oldTemp !== temp);
+            return temp;
+        }
+
         function deobfuscate(type) {
             try {
                 let code = document.getElementById('inputCode').value.trim();
@@ -670,8 +713,12 @@
                     .replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2')
                     .replace(/l\s*o\s*c\s*a\s*l/g, 'local')
                     .replace(/f\s*u\s*n\s*c\s*t\s*i\s*o\s*n/g, 'function')
+                    .replace(/r\s*e\s*t\s*u\s*r\s*n/g, 'return')
                     .replace(/t\s*h\s*e\s*n/g, 'then')
                     .replace(/e\s*n\s*d/g, 'end')
+                    .replace(/s\s*t\s*r\s*i\s*n\s*g\s*\.\s*c\s*h\s*a\s*r/g, 'string.char')
+                    .replace(/c\s*o\s*r\s*o\s*u\s*t\s*i\s*n\s*e\s*\.\s*w\s*r\s*a\s*p/g, 'coroutine.wrap')
+                    .replace(/b\s*y\s*t\s*e/g, 'byte')
                     .trim();
                 temp = removeComments(temp);
                 const stringChar = document.getElementById('stringChar').checked;
@@ -690,9 +737,11 @@
                 temp = temp
                     .replace(/;/g, ';\n')
                     .replace(/(\)\s*\{)/g, '$1\n')
+                    .replace(/function\s+(\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
                     .replace(/then\s+([^;\n]+)/g, 'then\n$1')
                     .replace(/end\s+([^;\n]+)/g, 'end\n$1')
                     .replace(/do\s+([^;\n]+)/g, 'do\n$1')
+                    .replace(/return\s+([^;\n]+)/g, 'return\n$1')
                     .replace(/([^\s])\s*([:a-zA-Z])/g, '$1\n$2');
                 let stringCharAliases = ['string\\.char'];
                 let aliasMatches;
@@ -713,6 +762,7 @@
                     do {
                         oldTemp = temp;
                         temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/(\d+)\s*\^\s*(\d+)/g, evaluateNumberExpression);
                         temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
                         temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
                     } while (oldTemp !== temp);
@@ -736,6 +786,9 @@
                 if (strSplit || type === 'all') {
                     temp = resolveStringConcatenation(temp);
                 }
+                if (numObf || type === 'all') {
+                    temp = inlineFunctions(temp);
+                }
                 let oldTemp;
                 do {
                     oldTemp = temp;
@@ -748,7 +801,7 @@
                             const fnName = varMatch[1];
                             const argMatch = temp.match(new RegExp(`local\\s+${args}\\s*=\\s*"([^"]*)"`));
                             if (argMatch) {
-                                return `${fnName}("${argMatch[2]}")`;
+                                return `${fnName}("${argMatch[1]}")`;
                             }
                             return `${fnName}(${args})`;
                         }
@@ -758,6 +811,12 @@
                         const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
                         if (varMatch) {
                             return `${varMatch[1]}()`;
+                        }
+                        return match;
+                    });
+                    temp = temp.replace(/(\w+)\[(".*?")\]\((.*?)\)/g, (match, tableVar, fn, args) => {
+                        if (fn === '"print"') {
+                            return `print(${args})`;
                         }
                         return match;
                     });
@@ -781,6 +840,7 @@
                         temp = temp.replace(/local\s+\w+\s*=\s*nil;\s*if\s+\w+\s+then[\s\S]*?end/g, '');
                         temp = temp.replace(/local\s+\w+\s*=\s*function\(\)\s*return\s+end;\s*\w+\(\)/g, '');
                         temp = temp.replace(/local\s+\w+\s*=\s*math\.random\(\)\s*>\s*[\d\.]+;\s*if\s+\w+\s+then\s+end/g, '');
+                        temp = temp.replace(/coroutine\.wrap\(function\(\)\s*([\s\S]*?)\s*end\)\(\)/g, '$1');
                     } while (oldTemp !== temp);
                 }
                 if (rename || type === 'all') {
