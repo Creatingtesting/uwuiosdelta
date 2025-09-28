@@ -3,550 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luau Code Deobfuscator</title>
+    <title>Skid V3 Deobfuscator</title>
     <style>
         body {
-            background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
-            color: #ffffff;
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            overflow: auto;
-        }
-        .container {
-            background: rgba(0, 0, 0, 0.7);
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            width: 700px;
-            max-width: 90%;
-            text-align: center;
-            backdrop-filter: blur(10px);
+            background-color: #f4f4f4;
         }
         h1 {
-            font-size: 2em;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #00ffff;
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .input-section, .output-section {
+            flex: 1;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
         }
         textarea {
             width: 100%;
-            height: 150px;
-            background: #2e2e4e;
-            border: 1px solid #00ffff;
-            border-radius: 10px;
-            color: #ffffff;
+            height: 300px;
             padding: 10px;
-            font-family: 'Courier New', monospace;
-            resize: none;
+            margin-top: 5px;
             box-sizing: border-box;
-        }
-        .buttons {
-            margin: 20px 0;
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-        }
-        .toggles {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
         }
         button {
+            background-color: #4CAF50;
+            color: white;
             padding: 10px 20px;
-            background: linear-gradient(45deg, #00ffff, #ff00ff);
             border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            font-size: 1em;
             cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-            margin: 5px;
+            font-size: 16px;
+            margin-top: 10px;
+            display: block;
+            width: 100%;
         }
         button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
-        }
-        label {
-            margin: 5px;
-            font-size: 0.9em;
+            background-color: #45a049;
         }
         #output {
-            background: #1e1e2f;
-            border: 1px solid #ff00ff;
-            border-radius: 10px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-x: auto;
-            overflow-y: auto;
-            text-align: left;
-            font-family: 'Courier New', monospace;
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 10px;
             white-space: pre-wrap;
-            box-sizing: border-box;
+            min-height: 300px;
+            overflow-y: auto;
         }
-        #output-type {
-            font-size: 0.9em;
-            color: #00ffff;
-            margin-bottom: 10px;
+        .error {
+            color: red;
+            margin-top: 10px;
         }
-        .glow {
-            animation: glow 1.5s ease-in-out infinite alternate;
+        .info {
+            color: #555;
+            margin-top: 10px;
         }
-        @keyframes glow {
-            from {
-                box-shadow: 0 0 10px #00ffff;
-            }
-            to {
-                box-shadow: 0 0 20px #ff00ff;
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
             }
         }
     </style>
 </head>
 <body>
+    <h1>MoonSec V3 Lua Deobfuscator</h1>
+    <p class="info">
+        <strong>Instructions:</strong> Paste your obfuscated MoonSec V3 Lua code in the input box and click "Deobfuscate". The tool will attempt to decode strings, simplify control flow, and produce readable Lua code. Note: MoonSec V3 is complex, and full deobfuscation may require manual analysis or advanced tools like Prometheus Deobfuscator for complete results.
+    </p>
     <div class="container">
-        <h1 class="glow">Luau Code Deobfuscator</h1>
-        <textarea id="inputCode" placeholder="Enter your obfuscated Luau code here..."></textarea>
-        <div class="toggles">
-            <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
-            <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
-            <label><input type="checkbox" id="base64" checked> Base64 Decoding</label>
-            <label><input type="checkbox" id="xor" checked> XOR Decoding</label>
-            <label><input type="checkbox" id="rename" checked> Variable Renaming</label>
-            <label><input type="checkbox" id="numObf" checked> Number Deobfuscation</label>
-            <label><input type="checkbox" id="strSplit" checked> String Desplitting</label>
-            <label><input type="checkbox" id="control" checked> Control Flow Cleanup</label>
-            <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
-            <label><input type="checkbox" id="removeUseless" checked> Remove Useless Variables</label>
-            <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
-            <label><input type="checkbox" id="minify"> Minify Output</label>
-            <label><input type="checkbox" id="simplify" checked> Simplify Output</label>
-            <label><input type="checkbox" id="moonsec" checked> MoonSec V3 Decoding</label>
+        <div class="input-section">
+            <label for="input">Obfuscated MoonSec V3 Code:</label>
+            <textarea id="input" placeholder="Paste your obfuscated MoonSec V3 Lua code here..."></textarea>
+            <button onclick="deobfuscate()">Deobfuscate</button>
         </div>
-        <div class="buttons">
-            <button onclick="deobfuscate('all')">Deobfuscate All</button>
-            <button onclick="copyCode()">Copy Code</button>
-            <button onclick="showSupport()">Support</button>
+        <div class="output-section">
+            <label for="output">Deobfuscated Code:</label>
+            <div id="output">Deobfuscated code will appear here...</div>
+            <div id="error" class="error"></div>
         </div>
-        <h2>Deobfuscated Code</h2>
-        <div id="output-type">Select a deobfuscation method...</div>
-        <div id="output">Deobfuscated code will appear here...</div>
     </div>
 
     <script>
-        const asciiTable = {
-            32: ' ', 33: '!', 34: '"', 35: '#', 36: '$', 37: '%', 38: '&', 39: '\'',
-            40: '(', 41: ')', 42: '*', 43: '+', 44: ',', 45: '-', 46: '.', 47: '/',
-            48: '0', 49: '1', 50: '2', 51: '3', 52: '4', 53: '5', 54: '6', 55: '7',
-            56: '8', 57: '9', 58: ':', 59: ';', 60: '<', 61: '=', 62: '>', 63: '?',
-            64: '@', 65: 'A', 66: 'B', 67: 'C', 68: 'D', 69: 'E', 70: 'F', 71: 'G',
-            72: 'H', 73: 'I', 74: 'J', 75: 'K', 76: 'L', 77: 'M', 78: 'N', 79: 'O',
-            80: 'P', 81: 'Q', 82: 'R', 83: 'S', 84: 'T', 85: 'U', 86: 'V', 87: 'W',
-            88: 'X', 89: 'Y', 90: 'Z', 91: '[', 92: '\\', 93: ']', 94: '^', 95: '_',
-            96: '`', 97: 'a', 98: 'b', 99: 'c', 100: 'd', 101: 'e', 102: 'f', 103: 'g',
-            104: 'h', 105: 'i', 106: 'j', 107: 'k', 108: 'l', 109: 'm', 110: 'n', 111: 'o',
-            112: 'p', 113: 'q', 114: 'r', 115: 's', 116: 't', 117: 'u', 118: 'v', 119: 'w',
-            120: 'x', 121: 'y', 122: 'z', 123: '{', 124: '|', 125: '}', 126: '~'
-        };
+        // Main deobfuscation function
+        function deobfuscate() {
+            const input = document.getElementById('input').value;
+            const outputDiv = document.getElementById('output');
+            const errorDiv = document.getElementById('error');
 
-        function removeComments(code) {
-            return code
-                .replace(/--\[\[[\s\S]*?\]\]/g, '')
-                .replace(/--[^\n]*/g, '')
-                .replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
-                .replace(/^\s+/gm, '')
-                .replace(/\s+$/gm, '')
-                .replace(/\n+/g, '\n')
-                .replace(/do\s+([\s\S]*?)\s+end/g, '$1')
-                .trim();
-        }
+            // Reset output and error
+            outputDiv.textContent = '';
+            errorDiv.textContent = '';
 
-        function minifyCode(code) {
-            return code
-                .replace(/\s+/g, ' ')
-                .replace(/ ?([=+-/*<>&|~^%]) ?/g, '$1')
-                .replace(/ ?([(),;]) ?/g, '$1')
-                .replace(/^\s+|\s+$/g, '');
-        }
-
-        function simplifyCode(code) {
-            let lines = code.split(';').map(line => line.trim()).filter(line => line);
-            let indentLevel = 0;
-            let result = [];
-            for (let line of lines) {
-                if (line.match(/end$/)) {
-                    indentLevel = Math.max(0, indentLevel - 1);
-                }
-                result.push('    '.repeat(indentLevel) + line);
-                if (line.match(/function.*\(.*\)$/)) {
-                    indentLevel++;
-                }
-            }
-            return result.join('\n');
-        }
-
-        function unescapeLuauString(str) {
             try {
-                console.log('Unescaping string:', str); // Debug
-                let result = str.replace(/\\(\d{1,3})/g, (match, num) => {
-                    const charCode = parseInt(num, 10);
-                    if (charCode >= 0 && charCode <= 255) {
-                        return String.fromCharCode(charCode);
-                    }
-                    console.warn(`Invalid char code: ${charCode}`);
-                    return match;
-                });
-                console.log('Unescaped result:', result); // Debug
-                return result;
-            } catch (e) {
-                console.error('unescapeLuauString error:', e);
-                return str;
+                // Step 1: Extract string table
+                const stringTable = extractStringTable(input);
+                if (!stringTable) {
+                    throw new Error('Failed to extract string table. Ensure the code is valid MoonSec V3.');
+                }
+
+                // Step 2: Decode bytecode (placeholder for VM interpretation)
+                let deobfuscated = decodeBytecode(input, stringTable);
+
+                // Step 3: Simplify control flow
+                deobfuscated = simplifyControlFlow(deobfuscated);
+
+                // Step 4: Fix syntax errors
+                deobfuscated = fixSyntax(deobfuscated);
+
+                // Step 5: Format for readability
+                deobfuscated = formatLuaCode(deobfuscated);
+
+                outputDiv.textContent = deobfuscated || 'No output generated. The code may be too complex for automatic deobfuscation.';
+            } catch (err) {
+                errorDiv.textContent = `Error: ${err.message}`;
             }
         }
 
-        function customXorDecode(str, key) {
-            console.log('XOR decoding:', { str, key }); // Debug
-            let result = [];
-            for (let i = 0; i < str.length; i++) {
-                let charCode = str.charCodeAt(i);
-                let keyCode = key.charCodeAt(i % key.length);
-                let decodedChar = (charCode ^ keyCode) % 256;
-                result.push(String.fromCharCode(decodedChar));
-            }
-            let decoded = result.join('');
-            console.log('XOR decoded:', decoded); // Debug
-            return decoded;
-        }
+        // Step 1: Extract and decode the string table
+        function extractStringTable(code) {
+            // Look for the string table (e.g., "\4\8\116\111\110\117\109\98\101\114...")
+            const stringTableMatch = code.match(/s\s*=\s*"([^"]*)"/);
+            if (!stringTableMatch) return null;
 
-        function decodeMoonSecString(str) {
-            console.log('Decoding MoonSec string:', str); // Debug
-            let result = '';
+            const encodedStr = stringTableMatch[1];
+            const result = [];
             let i = 0;
-            while (i < str.length) {
-                let n = str.charAt(i);
-                if (n === '\5') {
-                    break;
-                }
-                let e = str.charCodeAt(i + 1);
-                i += 2;
-                let substr = str.substr(i, e);
-                i += e;
-                if (n === '\2') {
-                    // Assuming MvCIjSkV is a simple XOR with a fixed key or identity
-                    result += substr; // Simplified: may need actual MvCIjSkV logic
-                } else if (n === '\3') {
-                    result += substr !== '\0' ? substr : '';
-                } else if (n === '\4' || n === '\6' || n === '\0') {
-                    result += substr; // Store or use as is
+
+            while (i < encodedStr.length) {
+                if (encodedStr[i] === '\5') break;
+                if (encodedStr[i] === '\2') {
+                    // Decode string
+                    const length = encodedStr.charCodeAt(i + 1);
+                    const decoded = encodedStr.slice(i + 2, i + 2 + length);
+                    result.push(decoded);
+                    i += 2 + length;
+                } else if (encodedStr[i] === '\3') {
+                    // Boolean toggle
+                    const length = encodedStr.charCodeAt(i + 1);
+                    const decoded = encodedStr.slice(i + 2, i + 2 + length);
+                    result.push(decoded !== '\0');
+                    i += 2 + length;
+                } else if (encodedStr[i] === '\6') {
+                    // Function reference
+                    const length = encodedStr.charCodeAt(i + 1);
+                    const decoded = encodedStr.slice(i + 2, i + 2 + length);
+                    result.push(`func_${decoded}`);
+                    i += 2 + length;
+                } else if (encodedStr[i] === '\4') {
+                    // Reference to another decoded value
+                    const length = encodedStr.charCodeAt(i + 1);
+                    const decoded = encodedStr.slice(i + 2, i + 2 + length);
+                    result.push(`ref_${decoded}`);
+                    i += 2 + length;
+                } else if (encodedStr[i] === '\0') {
+                    // Table reference
+                    const length = encodedStr.charCodeAt(i + 1);
+                    const decoded = encodedStr.slice(i + 2, i + 2 + length);
+                    result.push(`table_${decoded}`);
+                    i += 2 + length;
+                } else {
+                    i++;
                 }
             }
-            console.log('MoonSec decoded:', result); // Debug
+
             return result;
         }
 
-        function decodeComplexString(code) {
-            let temp = code;
-            let oldTemp;
-            do {
-                oldTemp = temp;
-                // Handle v7("str", "key") with escaped strings
-                temp = temp.replace(/v7\s*\(\s*"((?:[^"\\]|\\.)*?)"\s*,\s*"((?:[^"\\]|\\.)*?)"\s*\)/g, (match, str, key) => {
-                    try {
-                        console.log('v7 match:', { match, str, key }); // Debug
-                        let decodedStr = unescapeLuauString(str);
-                        let decodedKey = unescapeLuauString(key);
-                        let decoded = customXorDecode(decodedStr, decodedKey);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            console.log('v7 decoded successfully:', decoded); // Debug
-                            return `"${decoded}"`;
-                        }
-                        console.warn('v7 decoded invalid:', decoded);
-                        return match;
-                    } catch (e) {
-                        console.error('v7 decode error:', e);
-                        return match;
-                    }
-                });
-                // Handle MoonSec string decoding
-                temp = temp.replace(/s\s*=\s*"((?:[^"\\]|\\.)*?)"/g, (match, str) => {
-                    try {
-                        let decoded = decodeMoonSecString(str);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `s = "${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        console.error('MoonSec string decode error:', e);
-                        return match;
-                    }
-                });
-                // Handle d(number, "str") calls
-                temp = temp.replace(/d\s*\(\s*\d+\s*,\s*"([^"]*)"\s*\)/g, (match, str) => {
-                    try {
-                        // Simplified: assume d() is a passthrough or basic transform
-                        let decoded = unescapeLuauString(str);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        console.error('d() decode error:', e);
-                        return match;
-                    }
-                });
-            } while (oldTemp !== temp);
-            // Remove v7 function definition
-            temp = temp.replace(/local\s+function\s+v7\s*\(\s*\w+\s*,\s*\w+\s*\)\s*local\s+\w+\s*=\s*\{\s*\}\s*;\s*for\s+\w+\s*=\s*1\s*,\s*#[\w]+\s*do\s+\w+\s*\(\s*\w+\s*,\s*\w+\s*\(\s*\w+\s*\(\s*\w+\s*\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*\+\s*1\s*\)\s*\)\s*,\s*\w+\s*\(\s*\w+\s*\(\s*\w+\s*,\s*1\s*\+\s*\(\s*\w+\s*%\s*#[\w]+\s*\)\s*,\s*1\s*\+\s*\(\s*\w+\s*%\s*#[\w]+\s*\)\s*\+\s*1\s*\)\s*\)\s*\)\s*%\s*256\s*\)\s*\)\s*\)\s*;\s*end\s*return\s+\w+\s*\(\s*\w+\s*\)\s*;\s*end\s*;?/g, '');
-            // Remove MoonSec control flow loops
-            temp = temp.replace(/while\s+n\s*<\s*0x[a-fA-F0-9]+\s*do[\s\S]*?end/g, '');
-            temp = temp.replace(/if\s*\(e%0x[a-fA-F0-9]+\)\s*[<>=]+\s*0x[a-fA-F0-9]+\s*then[\s\S]*?end/g, '');
-            console.log('After complex string decoding:', temp); // Debug
-            return temp;
-        }
+        // Step 2: Decode bytecode (simplified, as full VM emulation is complex)
+        function decodeBytecode(code, stringTable) {
+            // Extract bytecode segments (e.g., d(238, "_qy90ziQwRZ5!StAqQ") and long string)
+            const bytecodeMatches = code.match(/d\(\d+,\s*"([^"]*)"\)/g);
+            if (!bytecodeMatches) return code;
 
-        function resolveStringConcatenation(code) {
-            let temp = code;
-            let oldTemp;
-            do {
-                oldTemp = temp;
-                temp = temp.replace(/local\s+(\w+)\s*=\s*([^;]*);/g, (match, varName, expr) => {
-                    if (expr.includes('..')) {
-                        const parts = expr.split('..').map(p => p.trim());
-                        let resolvedParts = parts.map(p => {
-                            const strMatch = p.match(/^"([^"]*)"$|^'([^']*)'$/);
-                            if (strMatch) {
-                                return strMatch[1] || strMatch[2];
-                            }
-                            const varMatch = temp.match(new RegExp(`local\\s+${p}\\s*=\\s*"([^"]*)"`));
-                            if (varMatch) {
-                                return varMatch[1];
-                            }
-                            return p;
-                        });
-                        if (resolvedParts.every(p => typeof p === 'string')) {
-                            const concatenated = resolvedParts.join('');
-                            return `local ${varName} = "${concatenated}";`;
-                        }
-                    }
-                    return match;
-                });
-                temp = temp.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, (match, str1, str2) => {
-                    return `"${str1 + str2}"`;
-                });
-            } while (oldTemp !== temp);
-            return temp;
-        }
-
-        function renameVariables(code) {
-            let temp = code;
-            let varMap = new Map();
-            let varCount = 0;
-
-            const varRegex = /local\s+(\w+)\s*(?:=|\b)/g;
-            let usedNames = new Set(['string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait']);
-            let match;
-            while ((match = varRegex.exec(temp)) !== null) {
-                const varName = match[1];
-                if (varName.startsWith('v') && !isNaN(parseInt(varName.slice(1)))) {
-                    let newName;
-                    if (temp.includes(`${varName}=game:GetService`)) {
-                        newName = 'physicsService';
-                    } else if (temp.includes(`${varName}=hookfunction(wait`)) {
-                        newName = 'hookedWait';
-                    } else if (temp.includes(`function(${varName})`)) {
-                        newName = 'delay';
-                    } else {
-                        newName = `var${varCount++}`;
-                    }
-                    if (!usedNames.has(newName)) {
-                        varMap.set(varName, newName);
-                        usedNames.add(newName);
-                    }
+            let decoded = code;
+            for (const match of bytecodeMatches) {
+                const [, encoded] = match.match(/d\(\d+,\s*"([^"]*)"\)/);
+                // Placeholder: Attempt to decode bytecode (MoonSec uses custom encoding)
+                try {
+                    // Example: Assume base64-like encoding for simplicity
+                    const decodedSegment = atob(encoded.replace(/[^A-Za-z0-9+/=]/g, '')) || encoded;
+                    decoded = decoded.replace(match, `"${decodedSegment}"`);
+                } catch (e) {
+                    // Fallback to original if decoding fails
+                    decoded = decoded.replace(match, `"${encoded}"`);
                 }
             }
 
-            for (let [oldName, newName] of varMap) {
-                const regex = new RegExp(`\\b${oldName}\\b`, 'g');
-                temp = temp.replace(regex, newName);
-            }
-
-            return temp;
-        }
-
-        function cleanUselessVariables(code) {
-            let lines = code.split('\n').map(line => line.trim()).filter(line => line);
-            let uselessVars = new Set(['v0', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'f', 'r', 't', 'n', 'e']);
-            let newLines = lines.filter(line => {
-                const varMatch = line.match(/local\s+(\w+)\s*=/);
-                return !(varMatch && uselessVars.has(varMatch[1]));
-            });
-            return newLines.join('\n');
-        }
-
-        function cleanUnusedVariables(code) {
-            let lines = code.split('\n').map(line => line.trim()).filter(line => line);
-            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait', 'physicsService', 'hookedWait', 'delay']);
-            let varAssignments = new Map();
-            let functionDefs = new Set();
-
-            for (let line of lines) {
-                const varMatch = line.match(/local\s+(\w+)\s*=/);
-                const funcMatch = line.match(/local\s+function\s+(\w+)\s*\(/);
-                if (varMatch) {
-                    varAssignments.set(varMatch[1], line);
-                }
-                if (funcMatch) {
-                    functionDefs.add(funcMatch[1]);
-                }
-                const used = line.match(/\b(\w+)\b/g) || [];
-                used.forEach(v => usedVars.add(v));
-            }
-
-            let newLines = lines.filter(line => {
-                const varMatch = line.match(/local\s+(\w+)\s*=/);
-                const funcMatch = line.match(/local\s+function\s+(\w+)\s*\(/);
-                if (varMatch && !usedVars.has(varMatch[1])) {
-                    return false;
-                }
-                if (funcMatch && !usedVars.has(funcMatch[1])) {
-                    return false;
-                }
-                return true;
+            // Replace string table references with decoded strings
+            stringTable.forEach((str, index) => {
+                const placeholder = `ref_${index}|table_${index}|func_${index}`;
+                const regex = new RegExp(placeholder, 'g');
+                decoded = decoded.replace(regex, JSON.stringify(str));
             });
 
-            return newLines.join('\n');
+            return decoded;
         }
 
-        function simplifyMoonSecVM(code) {
-            // Simplify VM dispatch loop
-            code = code.replace(/while\s+true\s+do\s+e\s*=\s*d\[n\]\s*;\s*o\s*=\s*e\[\w+\]\s*;[\s\S]*?end/g, '');
-            // Remove redundant number calculations
-            code = code.replace(/\(\s*-?\d+\s*[\+\-\*\/]\s*\(\s*function\(\)\s*[\s\S]*?end\s*\)\(\)\s*\)/g, '');
-            // Simplify function wrappers
-            code = code.replace(/local\s+function\s+\w+\s*\(\w+\)\s*return\s+([\w\.]+)\(\s*\)\s*end/g, '$1');
+        // Step 3: Simplify control flow
+        function simplifyControlFlow(code) {
+            // Remove redundant loops and modulo operations
+            let simplified = code.replace(/while\s*n<\d+\s*do\s*n=n\+1;.*?end/g, '');
+            simplified = simplified.replace(/\s*e=\(e[*+-\d%]+\)\%\d+/g, '');
+            simplified = simplified.replace(/if\s*e%2~=0\s*then\s*.*?else\s*.*?end/g, '');
+            // Remove junk assignments
+            simplified = simplified.replace(/t\[\d+\]=0x1;/g, '');
+            return simplified;
+        }
+
+        // Step 4: Fix syntax errors
+        function fixSyntax(code) {
+            // Fix unbalanced parentheses
+            let openParens = (code.match(/\(/g) || []).length;
+            let closeParens = (code.match(/\)/g) || []).length;
+            if (openParens > closeParens) {
+                code += ')'.repeat(openParens - closeParens);
+            } else if (closeParens > openParens) {
+                code = code.slice(0, -(closeParens - openParens));
+            }
+
+            // Remove trailing commas in tables
+            code = code.replace(/,\s*}/g, '}');
+            // Fix double commas
+            code = code.replace(/,,\s*/g, ',');
+            // Fix double semicolons
+            code = code.replace(/;+\s*/g, ';');
+            // Remove redundant local declarations
+            code = code.replace(/local\s*\w+\s*=\s*0x[0-9a-fA-F]+;/g, '');
+
             return code;
         }
 
-        function showSupport() {
-            alert('W.I.P');
-        }
-
-        function deobfuscate(type) {
-            try {
-                let code = document.getElementById('inputCode').value.trim();
-                if (!code) {
-                    document.getElementById('output').textContent = 'No code to deobfuscate.';
-                    return;
-                }
-
-                let temp = removeComments(code);
-                const stringChar = document.getElementById('stringChar').checked;
-                const removeASCII = document.getElementById('removeASCII').checked;
-                const base64 = document.getElementById('base64').checked;
-                const xor = document.getElementById('xor').checked;
-                const rename = document.getElementById('rename').checked;
-                const numObf = document.getElementById('numObf').checked;
-                const strSplit = document.getElementById('strSplit').checked;
-                const control = document.getElementById('control').checked;
-                const deadCode = document.getElementById('deadCode').checked;
-                const removeUseless = document.getElementById('removeUseless').checked;
-                const antiDump = document.getElementById('antiDump').checked;
-                const minify = document.getElementById('minify').checked;
-                const simplify = document.getElementById('simplify').checked;
-                const moonsec = document.getElementById('moonsec').checked;
-
-                let outputType = 'Deobfuscate All';
-
-                if (antiDump || type === 'all') {
-                    temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
-                    temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
-                }
-
-                if (numObf || type === 'all') {
-                    let oldTemp;
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, (match, a, op, b) => {
-                            a = Number(a);
-                            b = Number(b);
-                            switch (op) {
-                                case '+': return a + b;
-                                case '-': return a - b;
-                                case '*': return a * b;
-                                case '/': return a / b;
-                            }
-                        });
-                    } while (oldTemp !== temp);
-                }
-
-                if (stringChar || type === 'all') {
-                    temp = temp.replace(/string\.char\((\d+(?:,\s*\d+)*)\)/g, (match, nums) => {
-                        const numbers = nums.split(',').map(n => parseInt(n.trim()));
-                        if (numbers.every(n => n >= 0 && n <= 255)) {
-                            return `"${numbers.map(n => asciiTable[n] || String.fromCharCode(n)).join('')}"`;
-                        }
-                        return match;
-                    });
-                }
-
-                if (base64 || xor || moonsec || type === 'all') {
-                    temp = decodeComplexString(temp);
-                }
-
-                if (strSplit || type === 'all') {
-                    temp = resolveStringConcatenation(temp);
-                }
-
-                if (moonsec || type === 'all') {
-                    temp = simplifyMoonSecVM(temp);
-                }
-
-                if (removeUseless || type === 'all') {
-                    temp = cleanUselessVariables(temp);
-                }
-
-                if (deadCode || type === 'all') {
-                    temp = cleanUnusedVariables(temp);
-                }
-
-                if (rename || type === 'all') {
-                    temp = renameVariables(temp);
-                }
-
-                temp = removeComments(temp);
-                if (minify && !simplify) {
-                    temp = minifyCode(temp);
-                } else if (simplify) {
-                    temp = simplifyCode(temp);
-                }
-
-                const normalizedInput = code.replace(/\s+/g, ' ').trim();
-                const normalizedOutput = temp.replace(/\s+/g, ' ').trim();
-                if (normalizedOutput === normalizedInput || temp === '') {
-                    document.getElementById('output').textContent = 'No changes made during deobfuscation.';
-                } else {
-                    document.getElementById('output-type').textContent = `Deobfuscation Type: ${outputType}`;
-                    document.getElementById('output').textContent = temp;
-                }
-            } catch (err) {
-                console.error(err);
-                document.getElementById('output').textContent = 'Error during deobfuscation: ' + err.message;
-            }
-        }
-
-        function copyCode() {
-            const output = document.getElementById('output').textContent;
-            if (output && output !== 'Deobfuscated code will appear here...' && output !== 'No changes made during deobfuscation.') {
-                navigator.clipboard.writeText(output).then(() => {
-                    alert('Code copied to clipboard!');
-                }).catch(err => {
-                    alert('Failed to copy: ' + err);
-                });
-            } else {
-                alert('No code to copy!');
-            }
+        // Step 5: Format Lua code for readability
+        function formatLuaCode(code) {
+            // Basic Lua code formatting
+            let lines = code.split('\n');
+            let indentLevel = 0;
+            const formatted = lines.map(line => {
+                line = line.trim();
+                if (!line) return '';
+                if (line.match(/end[;\s]*$/)) indentLevel = Math.max(0, indentLevel - 1);
+                const indent = '  '.repeat(indentLevel);
+                if (line.match(/^(function|if|for|while)\b/)) indentLevel++;
+                return indent + line;
+            }).filter(line => line !== '');
+            return formatted.join('\n');
         }
     </script>
 </body>
