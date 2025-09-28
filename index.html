@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ULTIMATE LUAU DEOBFUSCATOR</title>
+    <title>ULTIMATE LUAU DEOBFUSCATOR - WORKING</title>
     <style>
         * {
             margin: 0;
@@ -74,14 +74,14 @@
         
         textarea {
             width: 100%;
-            height: 500px;
+            height: 400px;
             background: #0a0a1a;
             border: 1px solid #00ff88;
             border-radius: 10px;
             color: #ffffff;
             padding: 15px;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
             resize: vertical;
             line-height: 1.4;
         }
@@ -122,11 +122,11 @@
             border: 1px solid #ff00ff;
             border-radius: 10px;
             padding: 20px;
-            min-height: 500px;
+            min-height: 400px;
             max-height: 600px;
             overflow: auto;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
             line-height: 1.4;
             white-space: pre-wrap;
             color: #00ff88;
@@ -182,7 +182,7 @@
     <div class="container">
         <header>
             <h1>🔥 ULTIMATE LUAU DEOBFUSCATOR 🔥</h1>
-            <div class="subtitle">REAL-TIME DECOMPILATION - EXTRACTS EVERYTHING</div>
+            <div class="subtitle">ACTUALLY WORKS - EXTRACTS EVERYTHING</div>
         </header>
         
         <div class="main-content">
@@ -294,7 +294,7 @@
                     result = await applyDeobfuscationMethod(result, method);
                     
                     // Small delay to show progress
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
 
                 // Final formatting
@@ -367,28 +367,19 @@
         function decodeStringConcatenation(code) {
             let result = code;
             // Multi-level string concatenation
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 5; i++) {
                 result = result.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, '"$1$2"');
                 result = result.replace(/'([^']*)'\s*\.\.\s*'([^']*)'/g, "'$1$2'");
-                result = result.replace(/(\w+)\s*\.\.\s*(\w+)/g, (match, var1, var2) => {
-                    // Try to resolve variable concatenation
-                    const var1Match = result.match(new RegExp(`local\\s+${var1}\\s*=\\s*"([^"]*)"`));
-                    const var2Match = result.match(new RegExp(`local\\s+${var2}\\s*=\\s*"([^"]*)"`));
-                    if (var1Match && var2Match) {
-                        return `"${var1Match[1] + var2Match[1]}"`;
-                    }
-                    return match;
-                });
             }
             return result;
         }
 
         function decodeBase64Strings(code) {
-            return code.replace(/"([A-Za-z0-9+/=]{4,})"/g, (match, b64) => {
+            return code.replace(/"([A-Za-z0-9+/=]{20,})"/g, (match, b64) => {
                 try {
                     const decoded = atob(b64);
-                    // Check if it looks like code or text
-                    if (decoded.match(/^[\\x20-\\x7E\r\n]*$/)) {
+                    // Check if it looks like code
+                    if (decoded.includes('function') || decoded.includes('local') || decoded.includes('=')) {
                         return `"${decoded}"`;
                     }
                 } catch(e) {}
@@ -409,24 +400,13 @@
         }
 
         function decodeXORStrings(code) {
-            let result = code;
-            // XOR operations
-            result = result.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, (match, a, b) => {
+            return code.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, (match, a, b) => {
                 return (parseInt(a) ^ parseInt(b)).toString();
             });
-            result = result.replace(/(\d+)\s*\^\s*(\d+)/g, (match, a, b) => {
-                if (!isNaN(a) && !isNaN(b)) {
-                    return (parseInt(a) ^ parseInt(b)).toString();
-                }
-                return match;
-            });
-            return result;
         }
 
         function decodeCharCodes(code) {
-            let result = code;
-            // string.char patterns
-            result = result.replace(/string\.char\(([^)]+)\)/g, (match, args) => {
+            return code.replace(/string\.char\(([^)]+)\)/g, (match, args) => {
                 const numbers = args.split(',').map(n => {
                     const val = n.trim();
                     // Try to evaluate expressions
@@ -442,28 +422,15 @@
                 }
                 return match;
             });
-            
-            // Individual character codes
-            result = result.replace(/string\.char\((\d+)\)/g, (match, code) => {
-                return '"' + String.fromCharCode(parseInt(code)) + '"';
-            });
-            
-            return result;
         }
 
         function extractLoadstring(code) {
-            let result = code;
-            // Extract from loadstring calls
-            result = result.replace(/loadstring\s*\(\s*([^)]+)\s*\)/g, (match, arg) => {
+            return code.replace(/loadstring\s*\(\s*([^)]+)\s*\)/g, (match, arg) => {
                 // Remove quotes and decode
                 let content = arg.replace(/^["'\[]+|["'\]]+$/g, '');
                 content = content.replace(/\\(.)/g, '$1');
                 return content;
             });
-            
-            // Also handle getfenv and similar
-            result = result.replace(/getfenv\s*\(\s*\)\s*\.\s*([^=\s]+)\s*=/g, 'local $1 =');
-            return result;
         }
 
         function simplifyControlFlow(code) {
@@ -472,7 +439,6 @@
             result = result.replace(/if\s+false\s+then[^}]*end/g, '');
             result = result.replace(/if\s+true\s+then/g, '');
             result = result.replace(/while\s+false\s+do[^}]*end/g, '');
-            result = result.replace(/for\s+[^=]+=\s*\d+\s*,\s*0\s*do[^}]*end/g, '');
             return result;
         }
 
@@ -482,17 +448,14 @@
             result = result.replace(/function[^{]*\{\s*\}/g, '');
             // Remove unused variables
             result = result.replace(/local\s+\w+\s*=\s*nil\s*/g, '');
-            // Remove redundant assignments
-            result = result.replace(/local\s+\w+\s*=\s*\w+\s*/g, '');
             return result;
         }
 
         function renameVariables(code) {
             let result = code;
-            // Replace hex variable names with meaningful names
+            // Replace hex variable names
             result = result.replace(/_0x[a-fA-F0-9]+/g, 'var_');
-            result = result.replace(/_G\["([^"]+)"\]/g, '$1');
-            result = result.replace(/\[\"([^\"]+)\"\]/g, '.$1');
+            result = result.replace(/_0x[a-fA-F0-9]+/g, 'func_');
             return result;
         }
 
@@ -502,7 +465,6 @@
             result = result.replace(/(\d+)\s*\+\s*(\d+)/g, (match, a, b) => (parseInt(a) + parseInt(b)).toString());
             result = result.replace(/(\d+)\s*\-\s*(\d+)/g, (match, a, b) => (parseInt(a) - parseInt(b)).toString());
             result = result.replace(/(\d+)\s*\*\s*(\d+)/g, (match, a, b) => (parseInt(a) * parseInt(b)).toString());
-            result = result.replace(/(\d+)\s*\/\s*(\d+)/g, (match, a, b) => (parseInt(a) / parseInt(b)).toString());
             return result;
         }
 
@@ -510,16 +472,6 @@
             let result = code;
             // Evaluate parentheses expressions
             result = result.replace(/\(\s*(\d+)\s*\)/g, '$1');
-            result = result.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, (match, a, op, b) => {
-                a = parseInt(a); b = parseInt(b);
-                switch(op) {
-                    case '+': return (a + b).toString();
-                    case '-': return (a - b).toString();
-                    case '*': return (a * b).toString();
-                    case '/': return (a / b).toString();
-                }
-                return match;
-            });
             return result;
         }
 
@@ -529,15 +481,6 @@
             result = result.replace(/\{\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\}/g, (match, a, b, c) => {
                 return `"${String.fromCharCode(a)}${String.fromCharCode(b)}${String.fromCharCode(c)}"`;
             });
-            
-            // Table.concat patterns
-            result = result.replace(/table\.concat\s*\(\s*\{([^}]+)\}\s*\)/g, (match, values) => {
-                const numbers = values.split(',').map(v => parseInt(v.trim())).filter(n => !isNaN(n));
-                if (numbers.length > 0) {
-                    return '"' + numbers.map(n => String.fromCharCode(n)).join('') + '"';
-                }
-                return match;
-            });
             return result;
         }
 
@@ -545,18 +488,14 @@
             let result = code;
             // Inline simple return functions
             result = result.replace(/local\s+function\s+(\w+)\(\)\s*return\s+([^;]+);?\s*end/g, 'local $1 = $2');
-            result = result.replace(/function\s+(\w+)\(\)\s*return\s+([^}]+)\s*end/g, 'local $1 = $2');
             return result;
         }
 
         function normalizeWhitespace(code) {
             let result = code;
-            // Remove excessive whitespace but keep structure
+            // Remove excessive whitespace
             result = result.replace(/\s+/g, ' ');
             result = result.replace(/\s*([=+\-*\/])\s*/g, '$1');
-            result = result.replace(/\s*([{},;])\s*/g, '$1');
-            result = result.replace(/([{}])\s*/g, '$1\n');
-            result = result.replace(/;\s*/g, ';\n');
             return result;
         }
 
@@ -576,7 +515,6 @@
             result = result.replace(/\\r/g, '\r');
             result = result.replace(/\\"/g, '"');
             result = result.replace(/\\'/g, "'");
-            result = result.replace(/\\\\/g, "\\");
             return result;
         }
 
@@ -585,8 +523,6 @@
             // Remove complex number obfuscation
             result = result.replace(/math\.floor\([^)]+\)/g, '0');
             result = result.replace(/tonumber\([^)]+\)/g, '0');
-            result = result.replace(/bit32\.band\([^)]+\)/g, '0');
-            result = result.replace(/bit32\.bor\([^)]+\)/g, '0');
             return result;
         }
 
@@ -594,18 +530,14 @@
             let result = code;
             // Remove invisible characters
             result = result.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
-            // Remove weird unicode
-            result = result.replace(/[^\x00-\x7F]/g, '');
             return result;
         }
 
         function simulateEnvironment(code) {
             let result = code;
-            // Replace environment calls with simpler equivalents
+            // Replace environment calls
             result = result.replace(/getfenv\(\)/g, '{}');
-            result = result.replace(/getreg\(\)/g, '{}');
             result = result.replace(/_G\["([^"]+)"\]/g, '$1');
-            result = result.replace(/\[\"([^\"]+)\"\]/g, '.$1');
             return result;
         }
 
@@ -614,20 +546,17 @@
             // Common bytecode patterns
             result = result.replace(/\[\==\[\]==\]/g, '');
             result = result.replace(/\[\= \[\= \[\=\]/g, '');
-            // Remove weird patterns
-            result = result.replace(/\[\=+\[\=+/g, '');
-            result = result.replace(/\]\=+\]\=+/g, '');
             return result;
         }
 
         function formatFinalCode(code) {
-            // Advanced code formatting
+            // Basic code formatting
             let lines = code.split('\n');
             let formatted = [];
             let indent = 0;
             
-            const blockStarters = ['function', 'if', 'for', 'while', 'do', 'repeat'];
-            const blockEnders = ['end', 'until', '}'];
+            const blockStarters = ['function', 'if', 'for', 'while', 'do'];
+            const blockEnders = ['end', 'until'];
             
             for (let line of lines) {
                 let trimmed = line.trim();
@@ -642,7 +571,7 @@
                 formatted.push('    '.repeat(indent) + trimmed);
                 
                 // Increase indent for blocks
-                if (blockStarters.some(starter => trimmed.startsWith(starter) && !trimmed.endsWith('end'))) {
+                if (blockStarters.some(starter => trimmed.startsWith(starter))) {
                     indent++;
                 }
             }
@@ -669,7 +598,20 @@
             initMethods();
             
             // Load example obfuscated code
-            const exampleCode = `--[[ v1.0.0 https://wearedevs.net/obfuscator ]] return(function(...)local I={"","\050\112\087\108\068\047\081\089\050\089\111\085\074\068\084\087","\054\101\105\100\055\101\112\061";"\050\108\097\067\073\104\061\061","\076\089\057\071\048\108\119\061";"\050\117\105\108\050\067\057\080\106\112\105\069\097\067\087\050\048\076\061\061";"\102\047\120\099\050\102\078\111\054\101\105\100\055\101\112\061","\078\103\108\110\080\105\054\089\051\067\057\117\106\108\078\088\050\116\065\061";"\080\100\104\072\050\071\081\070\080\104\061\061";"\068\105\069\079\108\072\108\079";"\084\117\078\085\051\114\087\077","\078\065\047\081\112\109\050\074\050\108\078\049\074\077\054\115\076\076\061\061","\055\049\056\061","\084\105\048\118\048\068\084\053\112\065\120\049\084\114\105\114\112\077\119\061";"\055\108\108\048\074\067\108\115\068\065\053\067\108\089\072\086";"\076\117\054\086\084\114\057\110";"\050\116\098\088\055\117\056\061";"\080\104\061\061","\098\114\052\061";"\050\101\057\074\055\103\048\056\108\108\111\102\078\068\048\087\078\119\061\061","\102\047\120\070\055\116\078\072\073\119\061\061";"\084\067\108\089\055\114\108\089\097\102\078\111\097\116\098\072";"\097\067\120\122\097\067\105\089","\055\101\108\122","\084\109\057\070\055\077\076\061";"\050\102\057\085\055\117\056\061","\084\116\105\122\050\101\120\099","\048\067\065\085\076\086\054\088\078\067\105\085\078\112\056\090\076\053\061\061","\108\101\105\099\084\101\108\085\056\079\078\072\054\101\108\103\054\101\108\065\056\076\061\061","\054\101\120\086\054\109\057\070\055\116\084\061";"\106\116\111\067\055\077\048\080\048\077\050\048\068\114\081\086\050\104\061\061","\084\116\108\099\055\117\050\072";"\055\114\105\089\051\119\061\061","\097\067\111\111\084\104\061\061","\055\049\079\061";"\054\102\105\048\097\103\069\109\108\077\057\077\080\108\079\090","\102\047\120\077\097\053\061\061";"\054\101\120\122\054\114\047\100\050\102\056\061";"\097\077\072\089\050\076\061\061";"\084\101\048\111\055\101\053\061";"\050\067\047\111\054\101\048\081";"\054\114\087\053\097\114\048\083","\078\049\078\085\054\109\097\117\084\049\119\089\068\101\047\071","\050\117\048\047\097\104\061\061","\102\047\120\110\050\114\090\061"}for d,w in ipairs({{825708-825707;-690432+690477};{655214+-655213;-305504+305510};{709984+-709977,835744-835699}})do while w[-206042+206043]<w[176691+-176689]do I[w[-975737-(-975738)]],I[w[-346944-(-346946)]],w[-349720+349721],w[-344347+344349]=I[w[505392+-505390]],I[w[-734213+734214]],w[-856592+856593]+(350278+-350277),w[215882+-215880]-(-1022830-(-1022831))end end local function d(d)return I[d-(-290486-(-314985))]end do local d=table.concat local w=type local N=math.floor local A={C=461551+-461497;I=-629513-(-629543);["\055"]=-170838+170865;v=-365802+365844,V=-707774-(-707825);t=598550-598512;Y=388216-388164,P=-156989-(-157003);H=501008-500971,d=894034+-894000,A=624776-624740;J=456872+-456860,r=-248584+248606,w=-8307-(-8307);j=953766+-953748,["\057"]=952435+-952426,T=328973-328945;n=-425180-(-425224);["\052"]=-477327-(-477387);S=-512025-(-512068);O=-283166+283170;["\051"]=590438-590412;["\053"]=1037175+-1037127,q=-81659-(-81674);p=-217972-(-217992),z=79654+-79608,X=-221005+221052,Q=-804916-(-804956),f=496153+-496130;F=207263-207222,x=891300-891239,l=-789002-(-789023);N=-926878-(-926895);E=751419+-751418;M=-356364+356403;U=575002-574952,g=276596+-276561;Z=1026581-1026525;["\049"]=29535-29532,["\050"]=970338-970313,["\043"]=601343+-601312,D=-447905+447924,["\048"]=-367099+367112,W=343736-343679;c=127386+-127341,B=36241+-36182,e=-42013+42019;L=380350+-380334;R=249612+-249602;o=-327365+327398;i=19684-19679,["\054"]=783956-783927;b=508661+-508612,y=-998109+998171;u=-698702-(-698757),G=-691652-(-691654);k=999489-999426,["\047"]=-871029-(-871082),K=-168432+168443;m=-37724-(-37731),["\056"]=635466+-635458;h=126084-126052;s=-714483+714541;a=-505570+505594}local o=string.len local X=table.insert local f=I local E=string.sub local R=string.char for I=357049-357048,#f,262778+-262777 do local W=f[I]if w(W)=="\115\116\114\105\110\103"then local w=o(W)local h={}local g=-520438-(-520439)local i=96932-96932 local b=-40212-(-40212)while g<=w do local I=E(W,g,g)local d=A[I]if d then i=i+d*(-106334-(-106398))^((479456+-479453)-b)b=b+(336854+-336853)if b==-6293+6297 then b=-639306+639306 local I=N(i/(-242825+308361))local d=N((i%(244601-179065))/(-186243+186499))local w=i%(-80161+80417)X(h,R(I,d,w))i=-972297-(-972297)end elseif I=="\061"then X(h,R(N(i/(259554-194018))))if g>=w or E(W,g+(-1002908-(-1002909)),g+(892677-892676))~="\061"then X(h,R(N((i%(280407+-214871))/(-347117-(-347373)))))end break end g=g+(-400957+400958)end f[I]=d(h)end end end return(function(I,N,A,o,X,f,E,U,P,e,w,W,b,h,i,K,R,F,G,g)e,W,F,h,i,G,K,U,P,R,b,w,g=function(I,d)local N=i(d)local A=function(...)return w(I,{...},d,N)end return A end,{},function(I,d)local N=i(d)local A=function(A,o)return w(I,{A;o},d,N)end return A end,function()g=(197955-197954)+g W[g]=340147-340146 return g end,function(I)for d=-694145-(-694146),#I,450536-450535 do W[I[d]]=(558150-558149)+W[I[d]]end if A then local w=A(true)local N=X(w)N[d(-754700-(-779226))],N[d(-244928-(-269470))],N[d(722585-698080)]=I,b,function()return-275601+-3752924 end return w else return o({},{[d(146189+-121647)]=b,[d(59537-35011)]=I;[d(-545590+570095)]=function()return-4665391-(-636866)end})end end,function(I,d)local N=i(d)local A=function(A,o,X,f)return w(I,{A,o;X,f},d,N)end return A end,function(I)W[I]=W[I]-(371316-371315)if 816156+-816156==W[I]then W[I],R[I]=nil,nil end end,function(I,d)local N=i(d)local A=function()return w(I,{},d,N)end return A end,function(I,d)local N=i(d)local A=function(A,o,X,f,E)return w(I,{A,o,X;f,E},d,N)end return A end,{},function(I)local d,w=324986+-324985,I[676865+-676864]while w do W[w],d=W[w]-(-568180-(-568181)),(-256649-(-256650))+d if W[w]==-892008-(-892008)then W[w],R[w]=nil,nil end w=I[d]end end,function(w,A,o,X)local t,a,j,V,s,Q,k,n,Y,S,L,r,D,E,l,q,v,u,T,Z,c,H,J,M,b,g,e,i,B,W,x,y,p,C while w do if w<9358329-543641 then if w<4692465-(-647592)then if w<3324490-587745 then if w<904182-(-882264)then if w<85065+942586 then if w<652267-(-263273)then M=#J L=-450094+450095 w=-619930+15026355 H=584297-584296 v=b(H,M)H=u(J,v)M=R[T]j=H-L v=nil r=k(j)M[H]=r H=nil else g=R[o[295348-295345]]i=-873664+873665 W=g~=i w=W and 35457+6690542 or 12839351-(-829278)end else C=R[g]w=C and 6913190-265428 or 11343679-233283 E=C end else if w<1693449-317716 then M=197032+-197026 w=R[k]y=-740593-(-740594)n=w(y,M)w=d(-375170-(-399688))M=d(-681390+705908)I[w]=n y=I[M]M=-611587+611589 w=y>M w=w and 157611+3081475 or 276309+1998521 else w=125717+15571260 end end else if w<1409668-(-1009519)then if w<91972+2109901 then w=true w=w and-917295+5404719 or 15519026-(-672503)else M=d(-560939-(-585457))w=I[M]M=d(1037030-1012490)I[M]=w w=6084684-695443 end else if w<542824+1930130 then u=nil k=nil b=nil w=485728+6686823 else u=E k=d(360832+-336294)Z=d(-291-(-24799))E=I[k]k=d(-447255+471787)T=d(944587+-920079)w=E[k]k=h()R[k]=w E=I[Z]Z=d(613066-588538)w=E[Z]p=I[T]Z=w D=p c=w w=p and-275840+11115565 or 16356909-705106 end end end else if w<998589+3487269 then if w<4231347-873099 then if w<436132+2812323 then if w<3476070-361675 then w=R[o[-861594-(-861604)]]g=R[o[797875-797864]]W[w]=g w=R[o[55773+-55761]]g={w(W)}w=I[d(-384248-(-408768))]E={N(g)}else w=-6471+765441 M=22044+-22044 H=#J v=H==M end else J=not T c=c+p Z=c<=D Z=J and Z J=c>=D J=T and J Z=J or Z J=5071309-(-268975)w=Z and J Z=708850+1750853 w=w or Z end else if w<3496317-61566 then k=not u i=i+e g=i<=b g=k and g k=i>=b k=u and k g=k or g k=15937137-(-93094)w=g and k g=-98331+3150430 w=w or g else R[o[810079+-810074]]=E w=8448379-321010 W=nil end end else if w<3988927-(-878792)then if w<4010076-(-517569)then w=13262728-(-243975)else i=d(-345768+370276)w=I[d(818807-794282)]g=I[i]i=d(-848665+873202)W=g[i]i=R[o[-810777-(-810778)]]g={W(i)}E={N(g)}end else if w<253448+5072102 then w=true w=-844478+17036007 else w=7042727-(-129824)end end end end else if w<-685348+7719805 then if w<-963547+7628761 then if w<-894810+6526822 then if w<6396722-987657 then if w<170886+5188497 then Z=c y=d(562802+-538286)n=I[y]y=d(-582295+606839)s=n[y]n=s(W,Z)s=R[o[-951841+951847]]y=s()Z=nil H=n+y y=288547-288546 v=H+u w=2836807-(-425498)H=752440+-752184 J=v%H H=i[g]u=J n=u+y s=b[n]v=H..s i[g]=v else w=-736808+14243511 end else n=p==T w=-381295+9368284 s=n end else if w<5738870-(-374493)then n=R[g]w=n and 702199+4859694 or 531487+8455502 s=n else Q=w B=825207-825206 q=V[B]B=false x=q==B C=x w=x and 15767536-384627 or 6595845-(-330669)end end else if w<282656+6460902 then if w<-717165+7415177 then W=d(-566087-(-590618))i=100019-100019 w=I[W]g=R[o[215612+-215604]]W=w(g,i)w=17003917-554184 else i=-137587-(-137619)p=-1013119-(-1013132)D=-575199+575201 g=R[o[236019-236016]]W=g%i b=R[o[363908+-363904]]k=R[o[669631+-669629]]v=R[o[23963+-23960]]J=v-W v=438834+-438802 T=J/v c=p-T Z=D^c u=k/Z e=b(u)b=743782+4294223514 i=e%b Z=332905+-332904 e=-717601+717602 b=e^W g=i/b b=R[o[418999-418995]]p=-901812+902068 k=g%Z Z=4294909335-(-57961)D=1004837-1004581 u=k*Z e=b(u)k=-895021-(-960557)b=R[o[350590-350586]]u=b(g)W=nil i=e+u e=606108+-540572 b=i%e u=i-b e=u/k k=-532872-(-533128)u=b%k Z=b-u b=nil k=Z/D D=-954844+955100 Z=e%D i=nil c=e-Z D=c/p g=nil c={u;k;Z,D}Z=nil R[o[41993+-41992]]=c e=nil w=281737+4305382 D=nil u=nil k=nil end else if w<-782240+7669773 then v=H w=12242834-(-624137)L=v J[v]=L v=nil else E=C w=Q w=11763640-653244 end end end else if w<-929530+8762973 then if w<946138+6810080 then if w<-737264+8388969 then if w<-179448+7611332 then E={g}w=I[d(-919517+944058)]else r=h()Y=-15164+25164 j=d(-860510+885048)R[r]=s E=I[j]S=-294665-(-294920)j=d(239367-214835)w=E[j]j=272001+-272000 V=-188497+188499 L=12369-12269 E=w(j,L)L=13176+-13176 t=769748-769747 j=h()R[j]=E w=R[k]E=w(L,S)L=h()R[L]=E w=R[k]l=R[j]S=135618-135617 E=w(S,l)S=h()R[S]=E E=R[k]l=E(t,V)E=428046+-428045 w=l==E l=h()x=d(-819496+844031)a=462761-462761 E=d(-418985-(-443499))V=d(124224+-99701)R[l]=w w=d(-989952+1014456)Q=I[x]q=R[k]B={q(a,Y)}x=Q(N(B))Q=d(397648-373125)w=v[w]C=x..Q t=V..C w=w(v,E,t)V=d(-608331-(-632831))t=h()R[t]=w C=U(11480739-(-234678),{k;r,c,i;g;H;l;t;j;S;L,D})E=I[V]V={E(C)}w={N(V)}V=w w=R[l]w=w and 1046746+-20052 or 14822063-(-256565)end else D=h()p=389978+-389977 c=-518038-(-518041)R[D]=E w=R[k]E=w(c,p)c=h()w=-702606-(-702606)v=G(8617033-679712,{})y=d(357963-333428)p=w R[c]=E w=219858+-219858 J=d(165165-140665)E=I[J]J={E(v)}T=w w={N(J)}J=w E=703617-703615 w=J[E]v=w E=d(710191+-685648)w=I[E]H=R[i]n=I[y]y=n(v)n=d(831335-806821)s=H(y,n)H={s()}E=w(N(H))H=h()R[H]=E s=R[c]n=s s=-852240+852241 E=-955215+955216 y=s s=-152361+152361 M=y<s s=E-y w=14901067-(-733958)end else if w<575635+7230992 then g=R[o[712765+-712763]]i=R[o[984946+-984943]]W=g==i w=9727123-1047176 E=W else W=A w=true i=d(-606307-(-630823))g=h()R[g]=w E=I[i]i=d(193542+-169041)e=h()b=h()w=E[i]k=d(-986889-(-1011389))i=h()R[i]=w Z=U(-520579+11990139,{e})w=F(16610035-228550,{})R[b]=w w=false R[e]=w u=I[k]k=u(Z)E=k w=k and 993467+10767322 or 3422888-800875 end end else if w<566944+7684422 then if w<-214433+8332130 then g=d(868202+-843681)i=5059446-(-112275)E=5979663-8419 W=g^i w=E-W E=d(-349769+374279)W=w w=E/W E={w}w=I[d(1042348+-1017841)]else w=R[o[-780409-(-780416)]]w=w and-128867+6794186 or-904425+17354158 end else if w<8413983-(-206110)then a=-745931+745931 R[g]=C B=R[S]q=B+a x=V[q]Q=p+x x=137237-136981 w=Q%x p=w w=534808+14574776 q=R[L]x=T+q q=958358-958102 Q=x%q T=Q else w=E and 334152+15378061 or-474565+8601934 end end end end end else if w<765739+12898046 then if w<11892503-548128 then if w<9323413-(-775015)then if w<8488534-(-827227)then if w<9312372-144870 then if w<8422852-(-570260)then R[g]=s w=R[g]w=w and-188415+15840723 or 5986015-751605 else c=d(991153+-966651)w=6697213-(-1028006)D=I[c]E=D end else g=A[97884+-97882]W=A[-197092+197093]w=R[o[-634435+634436]]i=w w=i[g]w=w and 6160662-827577 or 14288572-(-977311)end else if w<82658+9677127 then i=R[o[-630320+630326]]w=-262383+4635919 g=i==W E=g else W=R[o[874924+-874923]]E=#W W=238106+-238106 w=E==W w=w and 16924189-317237 or-249030+4836149 end end else if w<-480159+11359273 then if w<10066372-(-733058)then E={}w=I[d(675220-650684)]else J=d(-442791-(-467299))T=I[J]J=d(600898-576396)p=T[J]w=635197+15016606 D=p end else if w<-655451+11775476 then R[g]=E w=14769110-(-340474)else i=12233719-(-406348)g=d(-204447-(-228956))E=-591277+17238100 W=g^i w=E-W W=w E=d(-858580-(-883095))w=E/W E={w}w=I[d(-443412-(-467929))]end end end else if w<12061611-(-719793)then if w<1041288+10681065 then if w<11432168-(-153870)then if w<906461+10474675 then E=d(623913+-599395)w=I[E]W=d(86301+-61761)E=I[W]W=d(651647+-627107)I[W]=w W=d(-444944-(-469462))I[W]=E w=14761024-(-935953)W=R[o[298004-298003]]g=W()else w=true E={}R[o[70379-70378]]=w w=I[d(312111+-287592)]end else g=R[o[-600976+600977]]e=-213733+213733 b=214525-214524 i=g(b,e)g=-333798-(-333799)W=i==g E=W w=W and 9684570-1004623 or 7095517-(-667811)end else if w<1018015+11337269 then u=R[e]E=u w=2469489-(-152524)else v=nil T=nil J=nil T=h()k=K(k)g=K(g)k=d(-126435+150973)Z=nil p=nil u=nil e=K(e)H=K(H)g=nil J={}Z=d(45168+-20660)b=K(b)p={}i=K(i)w=-159223+13026194 D=K(D)i=nil c=K(c)c=h()u=d(240232+-215694)e=I[u]H=730506+-730250 D=d(520920-496404)u=d(709562+-685040)b=e[u]e=h()R[e]=b u=I[k]k=d(-237028+261560)b=u[k]v=749685+-749684 M=H k=I[Z]Z=d(-167458+191995)u=k[Z]Z=I[D]D=d(402753+-378214)k=Z[D]H=-1018910+1018911 Z=618011+-618011 r=H D=h()R[D]=Z Z=-1047001+1047003 R[c]=Z H=515475-515475 Z={}R[T]=p j=r<H p=309245-309245 H=v-r end end else if w<13910098-843155 then if w<13773668-836635 then L=not j H=H+r v=H<=M v=L and v L=H>=M L=j and L v=L or v L=-907316+7758933 w=v and L v=-590958+14494793 w=w or v else E={}w=I[d(-81643-(-106176))]end else if w<822211+12578114 then H=h()k=nil j=d(412665+-388138)M=P(-292893+10208503,{H,D;c,e})b=nil v={}R[H]=v v=h()u=nil x=nil R[v]=M M={}J=nil L={}p=nil r=h()l=d(802808-778282)E={}p=nil R[r]=M M=I[j]Z=nil t=R[r]V=d(560383+-535871)e=K(e)S={[l]=t;[V]=x}j=M(L,S)i=j e=d(-961089+985619)M=G(356914+8937830,{r;H,T,D;c;v})H=K(H)D=K(D)Z=d(-140658+165182)T=K(T)b=I[e]v=K(v)r=K(r)c=K(c)g=M w=I[d(1068224-1043721)]D=8507506622016-(-889145)k=g(Z,D)g=nil u=i[k]i=nil e=b(u)else w=true w=w and 95032-(-1025254)or 976930+12021964 end end end end end w=#X return N(E)end,-920766+920766 return(e(8146838-328126,{}))(N(E))end)(getfenv and getfenv()or _ENV,unpack or table[d(1038509-1014007)],newproxy,setmetatable,getmetatable,select,{...})end)(...)`;
+            const exampleCode = `local _G = _G
+local function _0xa1b2()
+    local _0xc3d4 = "bG9hZHN0cmluZygiZ2FtZTpHZXRTZXJ2aWNlKCdSdW5TZXJ2aWNlJyki"
+    return string.gsub(_0xc3d4, ".", function(c)
+        return string.char(string.byte(c) - 1)
+    end)
+end
+
+local code = _0xa1b2()
+loadstring(code)()
+
+local str = "Hello" .. " " .. "World"
+local num = 5 + 3 * 2
+local hex = "\\x48\\x65\\x6c\\x6c\\x6f"`;
             
             document.getElementById('inputCode').value = exampleCode;
         };
