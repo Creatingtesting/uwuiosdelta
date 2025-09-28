@@ -170,15 +170,23 @@
         }
 
         function simplifyCode(code) {
-            // Split code by semicolons and newlines, preserving structure
-            let lines = code.replace(/;/g, ';\n').split('\n').map(line => line.trim()).filter(line => line);
+            // Split code by semicolons, newlines, and control structures
+            let lines = code
+                .replace(/;/g, ';\n')
+                .replace(/(\)\s*\{)/g, '$1\n')
+                .replace(/then\s+([^;\n]+)/g, 'then\n$1')
+                .replace(/end\s+([^;\n]+)/g, 'end\n$1')
+                .replace(/do\s+([^;\n]+)/g, 'do\n$1')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line);
             let indentLevel = 0;
             let result = [];
             const blockStarters = [/function.*\(.*\)$/, /if.*then$/, /for.*do$/, /do$/];
             const blockEnders = [/^end$/];
 
             for (let line of lines) {
-                // Remove trailing semicolons for cleaner output
+                // Remove trailing semicolons
                 line = line.replace(/;$/, '');
                 // Check if line ends a block
                 if (blockEnders.some(regex => regex.test(line))) {
@@ -502,12 +510,13 @@
             varAssignments.forEach((expr, varName) => {
                 if (usedNames.has(varName)) return;
                 let newName = varName;
+                // Prioritize service names
                 if (expr.match(/game:GetService\("([^"]+)"\)/)) {
                     const service = expr.match(/game:GetService\("([^"]+)"\)/)[1];
                     newName = serviceNames[service] || `Service${varName}`;
-                } else if (expr === 'G.LocalPlayer') {
+                } else if (expr.includes('LocalPlayer')) {
                     newName = 'LocalPlayer';
-                } else if (expr === 'workspace.CurrentCamera') {
+                } else if (expr.includes('CurrentCamera')) {
                     newName = 'Camera';
                 } else if (expr === 'false') {
                     newName = 'isAiming';
@@ -517,10 +526,10 @@
                     newName = 'updateInterval';
                 } else if (expr === '0') {
                     newName = 'timer';
-                } else if (expr.match(/"[^"]*"/)) {
-                    newName = 'debugString';
                 } else if (expr.match(/function.*\(.*\)$/)) {
                     newName = 'findClosestPlayer';
+                } else if (expr.match(/"[^"]*"/)) {
+                    newName = 'debugString';
                 }
                 // Ensure unique names
                 let baseName = newName;
@@ -533,9 +542,10 @@
                 usedNames.add(newName);
             });
 
-            // Replace variable names
+            // Replace variable names, handling shadowed variables
             nameMap.forEach((newName, oldName) => {
-                const regex = new RegExp(`\\b${oldName}\\b`, 'g');
+                // Use a more precise regex to avoid partial matches
+                const regex = new RegExp(`\\b${oldName}\\b(?=\\s*[^\\w]|$)`, 'g');
                 temp = temp.replace(regex, newName);
             });
 
@@ -604,8 +614,14 @@
 
                 let outputType = 'Deobfuscate All';
 
-                // Preprocess to add newlines after major statements for better splitting
-                temp = temp.replace(/(\)\s*\{)/g, '$1\n').replace(/(\))\s*([a-zA-Z])/g, '$1\n$2');
+                // Preprocess to add newlines for better splitting
+                temp = temp
+                    .replace(/;/g, ';\n')
+                    .replace(/(\)\s*\{)/g, '$1\n')
+                    .replace(/then\s+([^;\n]+)/g, 'then\n$1')
+                    .replace(/end\s+([^;\n]+)/g, 'end\n$1')
+                    .replace(/do\s+([^;\n]+)/g, 'do\n$1')
+                    .replace(/([^\s])\s*([:a-zA-Z])/g, '$1\n$2');
 
                 let stringCharAliases = ['string\\.char'];
                 let aliasMatches;
