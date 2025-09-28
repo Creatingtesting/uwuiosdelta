@@ -1,352 +1,1206 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Luau Code Inspector — Local Analyzer</title>
-<style>
-  :root{--bg1:#1e1e2f;--bg2:#2a2a4e;--accent1:#00ffff;--accent2:#ff00ff}
-  html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#fff}
-  .wrap{max-width:980px;margin:28px auto;padding:22px;background:rgba(0,0,0,0.6);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.6);backdrop-filter:blur(6px)}
-  h1{margin:0 0 12px;font-size:1.8rem;color:var(--accent1);text-shadow:0 0 8px rgba(0,255,255,.12)}
-  .meta{font-size:.9rem;color:var(--accent1);float:right}
-  textarea{width:100%;min-height:200px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#26263c;color:#eaeaea;font-family:Courier,monospace;box-sizing:border-box}
-  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-  .col{flex:1 1 200px;min-width:180px}
-  label{display:block;font-size:.9rem;margin-bottom:6px}
-  .controls{display:flex;gap:8px;flex-wrap:wrap}
-  button{background:linear-gradient(45deg,var(--accent1),var(--accent2));border:none;color:#111;padding:10px 14px;border-radius:8px;cursor:pointer}
-  #output{white-space:pre-wrap;font-family:Courier,monospace;background:#161622;border:1px solid rgba(255,0,255,.15);padding:12px;border-radius:8px;max-height:340px;overflow:auto;margin-top:10px}
-  .foot{margin-top:12px;color:#bbb;font-size:.85rem}
-  .note{color:#ffd3d3;background:rgba(255,0,0,.06);padding:8px;border-radius:6px;margin-top:8px}
-  input[type="text"]{width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.06);background:#222;color:#fff}
-  .small{font-size:.85rem;color:#cfefff}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luau Code Deobfuscator & Dumper</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: auto;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            width: 900px;
+            max-width: 90%;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            position: relative;
+        }
+        h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        .version {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 1.2em;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #2e2e4e;
+            border: 1px solid #00ffff;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            resize: none;
+            box-sizing: border-box;
+        }
+        .buttons {
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .toggles {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border: none;
+            border-radius: 5px;
+            color: #ffffff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin: 5px;
+        }
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        label {
+            margin: 5px;
+            font-size: 0.9em;
+        }
+        #output {
+            background: #1e1e2f;
+            border: 1px solid #ff00ff;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-x: auto;
+            overflow-y: auto;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+        #output-type {
+            font-size: 0.9em;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+        .glow {
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px #00ffff;
+            }
+            to {
+                box-shadow: 0 0 20px #ff00ff;
+            }
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #00ffff;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            background: rgba(0, 255, 255, 0.2);
+            transition: background 0.3s;
+        }
+        .tab.active {
+            background: rgba(0, 255, 255, 0.5);
+        }
+        .tab:hover {
+            background: rgba(0, 255, 255, 0.4);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .info-panel {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 15px;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .info-item {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
 </head>
 <body>
-  <div class="wrap">
-    <div style="display:flex;align-items:center;gap:12px">
-      <h1>Luau Code Inspector</h1>
-      <div class="meta">Local analyzer • v1.0</div>
-    </div>
-
-    <p class="small">Paste obfuscated Luau/Lua code you own here. This runs <strong>only in your browser</strong> and will not fetch, execute, or decompile remote sources.</p>
-
-    <textarea id="inputCode" placeholder="Paste Luau code you own..."></textarea>
-
-    <div class="row" style="margin-top:10px">
-      <div class="col">
-        <label><input type="checkbox" id="optUnescape" checked> Unescape ASCII &amp; hex escapes (\123, \x7F)</label>
-        <label><input type="checkbox" id="optStringChar" checked> Resolve string.char(...) calls (local-only numeric sequences)</label>
-        <label><input type="checkbox" id="optConcat" checked> Resolve simple string concatenations ("a".."b")</label>
-        <label><input type="checkbox" id="optBase64" checked> Try Base64 decode on embedded strings</label>
-        <label><input type="checkbox" id="optXor" > Try XOR decode when you provide a key</label>
-        <div style="margin-top:6px">
-          <label for="xorKey">XOR key (text):</label>
-          <input id="xorKey" type="text" placeholder="optional key for XOR decoding" />
+    <div class="container">
+        <div class="version">V2.0</div>
+        <h1 class="glow">Luau Code Deobfuscator & Dumper</h1>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('deobfuscate')">Deobfuscate</div>
+            <div class="tab" onclick="switchTab('dump')">Dump Analysis</div>
+            <div class="tab" onclick="switchTab('info')">Info</div>
         </div>
-      </div>
-
-      <div class="col">
-        <label><input type="checkbox" id="optRename" checked> Heuristic variable renaming (no semantics change)</label>
-        <label><input type="checkbox" id="optInline" checked> Inline trivial functions (return constants only)</label>
-        <label><input type="checkbox" id="optNumEval" checked> Simplify simple numeric expressions</label>
-        <label><input type="checkbox" id="optPretty" checked> Pretty-print (indent)</label>
-        <label><input type="checkbox" id="optStripComments" checked> Remove comments &amp; zero-width chars</label>
-      </div>
+        
+        <div id="deobfuscate" class="tab-content active">
+            <textarea id="inputCode" placeholder="Paste your obfuscated Luau code here..."></textarea>
+            <div class="toggles">
+                <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
+                <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
+                <label><input type="checkbox" id="base64" checked> Base64 Decoding</label>
+                <label><input type="checkbox" id="xor" checked> XOR Decoding</label>
+                <label><input type="checkbox" id="rename" checked> Variable Renaming</label>
+                <label><input type="checkbox" id="numObf" checked> Number Deobfuscation</label>
+                <label><input type="checkbox" id="strSplit" checked> String Desplitting</label>
+                <label><input type="checkbox" id="control" checked> Control Flow Cleanup</label>
+                <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
+                <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
+                <label><input type="checkbox" id="minify"> Minify Output</label>
+                <label><input type="checkbox" id="simplify" checked> Simplify Output</label>
+            </div>
+            <div class="buttons">
+                <button onclick="deobfuscate('all')">Deobfuscate All</button>
+                <button onclick="copyCode()">Copy Code</button>
+                <button onclick="showSupport()">Support</button>
+            </div>
+            <h2>Deobfuscated Code</h2>
+            <div id="output-type">Select a deobfuscation method...</div>
+            <div id="output">Deobfuscated code will appear here...</div>
+        </div>
+        
+        <div id="dump" class="tab-content">
+            <textarea id="dumpInput" placeholder="Paste obfuscated code for analysis..."></textarea>
+            <div class="buttons">
+                <button onclick="analyzeCode()">Analyze Code</button>
+                <button onclick="extractStrings()">Extract Strings</button>
+                <button onclick="identifyObfuscation()">Identify Obfuscation</button>
+            </div>
+            <h2>Analysis Results</h2>
+            <div id="dump-output">Analysis results will appear here...</div>
+            <div class="info-panel" id="dump-info">
+                <!-- Dump info will be populated here -->
+            </div>
+        </div>
+        
+        <div id="info" class="tab-content">
+            <h2>About Luau Code Deobfuscator & Dumper</h2>
+            <div class="info-panel">
+                <div class="info-item">
+                    <strong>Version:</strong> 2.0
+                </div>
+                <div class="info-item">
+                    <strong>Features:</strong>
+                    <ul>
+                        <li>Deobfuscate various Luau obfuscation techniques</li>
+                        <li>Analyze obfuscated code structure</li>
+                        <li>Extract hidden strings and data</li>
+                        <li>Identify obfuscation methods used</li>
+                        <li>Clean up control flow and remove dead code</li>
+                    </ul>
+                </div>
+                <div class="info-item">
+                    <strong>Supported Obfuscation:</strong>
+                    <ul>
+                        <li>String concatenation and encoding</li>
+                        <li>Base64 encoding</li>
+                        <li>XOR encryption</li>
+                        <li>Number obfuscation</li>
+                        <li>Control flow flattening</li>
+                        <li>Anti-dump techniques</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-      <div class="controls">
-        <button onclick="analyze()">Analyze (local)</button>
-        <button onclick="copyOutput()">Copy Output</button>
-        <button onclick="downloadOutput()">Download .lua</button>
-        <button onclick="resetAll()">Reset</button>
-      </div>
-    </div>
-
-    <div id="output" aria-live="polite">Results will appear here after you click Analyze.</div>
-
-    <div class="foot">
-      <div class="note"><strong>Legal / safety note:</strong> This inspector is intended for use on code you own or have explicit permission to analyze. It will not contact external servers, perform any decompilation of remote scripts, or execute the code you provide. I will not help you use it to obtain other people's private/obfuscated sources without permission.</div>
-      <p style="margin-top:8px">If you want more advanced features (for your own code) — e.g., better renaming rules, additional decode algorithms, or integration with an offline decompiler you already own — tell me what exact feature you want and I can safely expand this analyzer.</p>
-    </div>
-  </div>
-
-<script>
-/* Safe local-only analyzer. Nothing here fetches or executes code. */
-function safeReplaceAll(str, re, fn){ let last; do { last=str; str=str.replace(re, fn); } while(str!==last); return str; }
-
-/* Basic helpers */
-const asciiTable = (n=> {
-  try { return String.fromCharCode(Number(n)); } catch(e){ return ''; }
-});
-
-/* Unescape common Lua-style escapes inside quoted strings */
-function unescapeLuauStringLiteral(s){
-  // s assumes no surrounding quotes; only internal escapes
-  let out='', i=0;
-  while(i<s.length){
-    if(s[i]==='\\'){
-      i++;
-      if(i>=s.length){ out+='\\'; break; }
-      const c=s[i];
-      if(c==='x'){ // hex \xHH
-        const hex=(s.substr(i+1,2) || '');
-        if(/^[0-9A-Fa-f]{2}$/.test(hex)){ out += String.fromCharCode(parseInt(hex,16)); i+=3; continue; }
-        out += '\\x'; continue;
-      }
-      if(/\d/.test(c)){ // decimal \123
-        let num='';
-        while(/\d/.test(s[i]) && num.length<3){ num+=s[i]; i++; }
-        out += String.fromCharCode(Number(num)); continue;
-      }
-      const map={'n':'\n','r':'\r','t':'\t','\\':'\\','"':'"',"\'":"'",'a':'\x07','b':'\b','f':'\f','v':'\v'};
-      out += map[c] || c;
-      i++;
-    } else { out+=s[i++]; }
-  }
-  return out;
-}
-
-/* Safe numeric evaluator for small integer expressions (no eval, simple ops) */
-function evalSimpleNumeric(expr){
-  // allow digits, spaces and + - * / ^ and parentheses. evaluate by parsing tokens (very small)
-  if(!/^[0-9\+\-\*\/\^\(\)\s]+$/.test(expr)) return expr;
-  try{
-    // implement a safe parser via Function is avoided; implement a tiny shunting-yard
-    const ops={'+':1,'-':1,'*':2,'/':2,'^':3};
-    const isOp=(c)=>ops.hasOwnProperty(c);
-    // tokenize
-    let tokens=[], i=0;
-    while(i<expr.length){
-      const ch=expr[i];
-      if(/\s/.test(ch)){ i++; continue; }
-      if(/\d/.test(ch)){ let n=''; while(/\d/.test(expr[i])){n+=expr[i++]} tokens.push({t:'num',v:parseInt(n,10)}); continue; }
-      if(isOp(ch) || ch==='('||ch===')'){ tokens.push({t:'op',v:ch}); i++; continue; }
-      return expr;
-    }
-    // shunting yard -> RPN
-    let outQ=[], opS=[];
-    for(const tk of tokens){
-      if(tk.t==='num'){ outQ.push(tk.v); }
-      else if(tk.v==='('){ opS.push('('); }
-      else if(tk.v===')'){ while(opS.length && opS[opS.length-1] !== '(') outQ.push(opS.pop()); opS.pop(); }
-      else {
-        while(opS.length && opS[opS.length-1]!=='(' && ((ops[opS[opS.length-1]]>ops[tk.v]) || (ops[opS[opS.length-1]]===ops[tk.v] && tk.v!=='^'))){
-          outQ.push(opS.pop());
+    <script>
+        // Tab switching functionality
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName).classList.add('active');
         }
-        opS.push(tk.v);
-      }
-    }
-    while(opS.length) outQ.push(opS.pop());
-    // eval RPN
-    let st=[];
-    for(const t of outQ){
-      if(typeof t === 'number'){ st.push(t); }
-      else {
-        const b=st.pop(), a=st.pop();
-        if(t==='+') st.push(a+b);
-        else if(t==='-') st.push(a-b);
-        else if(t==='*') st.push(a*b);
-        else if(t==='/') st.push(a/b);
-        else if(t==='^') st.push(Math.pow(a,b));
-      }
-    }
-    return (st.length===1)? String(st[0]) : expr;
-  }catch(e){ return expr; }
-}
 
-/* Base64 decode helper (browser-safe) */
-function tryBase64Decode(s){
-  try{
-    // only attempt if valid base64 characters and reasonable length
-    if(!/^[A-Za-z0-9+\/=]+$/.test(s)) return null;
-    // atob may throw on invalid padding
-    const decoded = atob(s);
-    // only return if printable-ish
-    if(/^[\x09\x0A\x0D\x20-\x7E]*$/.test(decoded)) return decoded;
-    return null;
-  } catch(e){ return null; }
-}
+        // Dump analysis functions
+        function analyzeCode() {
+            const code = document.getElementById('dumpInput').value;
+            if (!code) {
+                document.getElementById('dump-output').textContent = 'No code to analyze.';
+                return;
+            }
+            
+            let analysis = "=== CODE ANALYSIS ===\n\n";
+            
+            // Line count
+            const lines = code.split('\n');
+            analysis += `Total lines: ${lines.length}\n`;
+            
+            // Character count
+            analysis += `Total characters: ${code.length}\n`;
+            
+            // Check for common obfuscation patterns
+            const patterns = {
+                'String concatenation': /\.\./g,
+                'Base64 encoded strings': /[A-Za-z0-9+\/=]{20,}/g,
+                'Hex escapes': /\\x[0-9A-Fa-f]{2}/g,
+                'Decimal escapes': /\\\d{1,3}/g,
+                'Suspicious variable names': /_0x[a-fA-F0-9]+/g,
+                'String.char patterns': /string\.char\([^)]+\)/gi,
+                'XOR operations': /\b(bit32\.bxor|~|\^)\b/g,
+                'Anti-dump patterns': /[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g,
+                'Suspicious functions': /(loadstring|getfenv|setfenv|getreg|getgc)\(/gi
+            };
+            
+            analysis += "\n=== OBFUSCATION PATTERNS ===\n";
+            for (const [patternName, regex] of Object.entries(patterns)) {
+                const matches = code.match(regex);
+                if (matches) {
+                    analysis += `${patternName}: ${matches.length} occurrences\n`;
+                }
+            }
+            
+            // Check for common obfuscators
+            const obfuscators = {
+                'Synapse X': /syn\.(crypt|secure)/gi,
+                'ScriptWare': /sw\./gi,
+                'Krnl': /krnl/gi,
+                'Oxygen U': /oxygen/gi,
+                'Electron': /electron/gi
+            };
+            
+            analysis += "\n=== POSSIBLE OBFUSCATORS ===\n";
+            for (const [obfuscator, regex] of Object.entries(obfuscators)) {
+                if (code.match(regex)) {
+                    analysis += `${obfuscator} detected\n`;
+                }
+            }
+            
+            // Check for encoded strings
+            analysis += "\n=== ENCODED STRINGS ===\n";
+            const base64Strings = code.match(/["']([A-Za-z0-9+\/=]{20,})["']/g);
+            if (base64Strings) {
+                analysis += `Base64-like strings: ${base64Strings.length}\n`;
+                base64Strings.slice(0, 5).forEach(str => {
+                    analysis += `  ${str.substring(0, 30)}...\n`;
+                });
+            }
+            
+            document.getElementById('dump-output').textContent = analysis;
+            
+            // Update info panel
+            const infoPanel = document.getElementById('dump-info');
+            infoPanel.innerHTML = `
+                <div class="info-item"><strong>Analysis Complete</strong></div>
+                <div class="info-item">Code analyzed: ${lines.length} lines, ${code.length} characters</div>
+                <div class="info-item">Use the extraction tools to get more details</div>
+            `;
+        }
+        
+        function extractStrings() {
+            const code = document.getElementById('dumpInput').value;
+            if (!code) {
+                document.getElementById('dump-output').textContent = 'No code to analyze.';
+                return;
+            }
+            
+            let extraction = "=== STRING EXTRACTION ===\n\n";
+            
+            // Extract all string literals
+            const stringRegex = /(["'])(?:(?=(\\?))\2.)*?\1/g;
+            const strings = code.match(stringRegex) || [];
+            
+            extraction += `Total string literals: ${strings.length}\n\n`;
+            
+            // Group by string length
+            const lengthGroups = {};
+            strings.forEach(str => {
+                const len = str.length;
+                if (!lengthGroups[len]) lengthGroups[len] = 0;
+                lengthGroups[len]++;
+            });
+            
+            extraction += "String length distribution:\n";
+            Object.keys(lengthGroups).sort((a, b) => a - b).forEach(len => {
+                extraction += `  ${len} chars: ${lengthGroups[len]} strings\n`;
+            });
+            
+            // Show longest strings
+            const sortedByLength = [...strings].sort((a, b) => b.length - a.length);
+            extraction += "\nLongest strings:\n";
+            sortedByLength.slice(0, 10).forEach(str => {
+                extraction += `  ${str.length} chars: ${str.substring(0, 50)}${str.length > 50 ? '...' : ''}\n`;
+            });
+            
+            // Check for potential base64
+            extraction += "\nPotential Base64 strings:\n";
+            const base64Regex = /["']([A-Za-z0-9+\/=]{20,})["']/g;
+            let match;
+            let base64Count = 0;
+            while ((match = base64Regex.exec(code)) !== null && base64Count < 10) {
+                extraction += `  ${match[1].substring(0, 30)}...\n`;
+                base64Count++;
+            }
+            
+            document.getElementById('dump-output').textContent = extraction;
+            
+            // Update info panel
+            const infoPanel = document.getElementById('dump-info');
+            infoPanel.innerHTML = `
+                <div class="info-item"><strong>Strings Extracted</strong></div>
+                <div class="info-item">Found ${strings.length} string literals</div>
+                <div class="info-item">Longest string: ${sortedByLength[0] ? sortedByLength[0].length : 0} characters</div>
+            `;
+        }
+        
+        function identifyObfuscation() {
+            const code = document.getElementById('dumpInput').value;
+            if (!code) {
+                document.getElementById('dump-output').textContent = 'No code to analyze.';
+                return;
+            }
+            
+            let identification = "=== OBFUSCATION IDENTIFICATION ===\n\n";
+            
+            // Score different obfuscation techniques
+            let score = 0;
+            const techniques = [];
+            
+            // Check for string concatenation
+            const concatMatches = code.match(/\.\./g);
+            if (concatMatches && concatMatches.length > 10) {
+                score += 2;
+                techniques.push("String concatenation obfuscation");
+            }
+            
+            // Check for encoded strings
+            const hexMatches = code.match(/\\x[0-9A-Fa-f]{2}/g);
+            if (hexMatches && hexMatches.length > 5) {
+                score += 2;
+                techniques.push("Hex escape encoding");
+            }
+            
+            const decMatches = code.match(/\\\d{1,3}/g);
+            if (decMatches && decMatches.length > 5) {
+                score += 2;
+                techniques.push("Decimal escape encoding");
+            }
+            
+            // Check for suspicious variable names
+            const suspiciousVars = code.match(/_0x[a-fA-F0-9]+/g);
+            if (suspiciousVars && suspiciousVars.length > 10) {
+                score += 3;
+                techniques.push("Hex-encoded variable names");
+            }
+            
+            // Check for string.char patterns
+            const stringCharMatches = code.match(/string\.char\([^)]+\)/gi);
+            if (stringCharMatches && stringCharMatches.length > 5) {
+                score += 3;
+                techniques.push("String.char encoding");
+            }
+            
+            // Check for XOR operations
+            const xorMatches = code.match(/\b(bit32\.bxor|~|\^)\b/g);
+            if (xorMatches && xorMatches.length > 5) {
+                score += 2;
+                techniques.push("XOR encryption");
+            }
+            
+            // Check for anti-dump characters
+            const antiDumpMatches = code.match(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g);
+            if (antiDumpMatches) {
+                score += 4;
+                techniques.push("Anti-dump characters");
+            }
+            
+            // Check for control flow obfuscation
+            const controlFlowMatches = code.match(/(goto|::[^:]+::)/g);
+            if (controlFlowMatches && controlFlowMatches.length > 10) {
+                score += 3;
+                techniques.push("Control flow obfuscation");
+            }
+            
+            // Check for number obfuscation
+            const complexNumbers = code.match(/\d+\s*[\+\-\*\/\^]\s*\d+/g);
+            if (complexNumbers && complexNumbers.length > 10) {
+                score += 2;
+                techniques.push("Number obfuscation");
+            }
+            
+            // Determine obfuscation level
+            let level = "Low";
+            if (score >= 15) level = "Very High";
+            else if (score >= 10) level = "High";
+            else if (score >= 5) level = "Medium";
+            
+            identification += `Obfuscation Level: ${level} (Score: ${score}/20)\n\n`;
+            identification += "Detected Techniques:\n";
+            techniques.forEach(tech => {
+                identification += `  - ${tech}\n`;
+            });
+            
+            // Recommendations
+            identification += "\nRecommendations:\n";
+            if (techniques.includes("String.char encoding")) {
+                identification += "  - Enable String.char decoding\n";
+            }
+            if (techniques.includes("Hex escape encoding") || techniques.includes("Decimal escape encoding")) {
+                identification += "  - Enable ASCII escape removal\n";
+            }
+            if (techniques.includes("XOR encryption")) {
+                identification += "  - Enable XOR decoding\n";
+            }
+            if (techniques.includes("Anti-dump characters")) {
+                identification += "  - Enable anti-dump removal\n";
+            }
+            if (techniques.includes("Control flow obfuscation")) {
+                identification += "  - Enable control flow cleanup\n";
+            }
+            if (techniques.includes("Number obfuscation")) {
+                identification += "  - Enable number deobfuscation\n";
+            }
+            
+            document.getElementById('dump-output').textContent = identification;
+            
+            // Update info panel
+            const infoPanel = document.getElementById('dump-info');
+            infoPanel.innerHTML = `
+                <div class="info-item"><strong>Obfuscation Analysis</strong></div>
+                <div class="info-item">Level: ${level} (${score}/20)</div>
+                <div class="info-item">Techniques: ${techniques.length}</div>
+                <div class="info-item">Switch to Deobfuscate tab to clean the code</div>
+            `;
+        }
 
-/* XOR helper: key is string; returns decoded text (bytewise xor) */
-function xorDecodeWithKey(s, key){
-  if(!key) return null;
-  let out='';
-  for(let i=0;i<s.length;i++){
-    out += String.fromCharCode(s.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-  }
-  // sanity: return printable only
-  if(/^[\x09\x0A\x0D\x20-\x7E]*$/.test(out)) return out;
-  return out;
-}
+        // Original deobfuscation functions (kept from the original code)
+        const asciiTable = {
+            32: ' ', 33: '!', 34: '"', 35: '#', 36: '$', 37: '%', 38: '&', 39: '\'',
+            40: '(', 41: ')', 42: '*', 43: '+', 44: ',', 45: '-', 46: '.', 47: '/',
+            48: '0', 49: '1', 50: '2', 51: '3', 52: '4', 53: '5', 54: '6', 55: '7',
+            56: '8', 57: '9', 58: ':', 59: ';', 60: '<', 61: '=', 62: '>', 63: '?',
+            64: '@', 65: 'A', 66: 'B', 67: 'C', 68: 'D', 69: 'E', 70: 'F', 71: 'G',
+            72: 'H', 73: 'I', 74: 'J', 75: 'K', 76: 'L', 77: 'M', 78: 'N', 79: 'O',
+            80: 'P', 81: 'Q', 82: 'R', 83: 'S', 84: 'T', 85: 'U', 86: 'V', 87: 'W',
+            88: 'X', 89: 'Y', 90: 'Z', 91: '[', 92: '\\', 93: ']', 94: '^', 95: '_',
+            96: '`', 97: 'a', 98: 'b', 99: 'c', 100: 'd', 101: 'e', 102: 'f', 103: 'g',
+            104: 'h', 105: 'i', 106: 'j', 107: 'k', 108: 'l', 109: 'm', 110: 'n', 111: 'o',
+            112: 'p', 113: 'q', 114: 'r', 115: 's', 116: 't', 117: 'u', 118: 'v', 119: 'w',
+            120: 'x', 121: 'y', 122: 'z', 123: '{', 124: '|', 125: '}', 126: '~'
+        };
 
-/* Resolve simple string.char(...) calls like string.char(65,66,..) into "AB" */
-function resolveStringCharCalls(src){
-  return safeReplaceAll(src, /\b(?:string|string\.char|strchr|chr)\s*\(\s*([0-9\+\-\*\,\s\(\)]+)\s*\)/g, (m,p)=> {
-    try{
-      // split by commas, evaluate simple numeric subexpr
-      const parts = p.split(',').map(x=>x.trim()).filter(Boolean);
-      const chars = parts.map(part => {
-        const simplified = evalSimpleNumeric(part);
-        if(/^[0-9]+$/.test(simplified)) return String.fromCharCode(Number(simplified));
-        return null;
-      });
-      if(chars.every(c=>c!==null)) return `"${chars.join('')}"`;
-      return m;
-    } catch(e){ return m; }
-  });
-}
+        function removeComments(code) {
+            return code
+                .replace(/--\[\[[\s\S]*?\]\]/g, '')
+                .replace(/--[^\n]*/g, '')
+                .replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
+                .replace(/^\s+/gm, '')
+                .replace(/\s+$/gm, '')
+                .replace(/\n+/g, '\n')
+                .replace(/do\s+([\s\S]*?)\s+end/g, '$1')
+                .trim();
+        }
 
-/* Resolve simple concatenation of string literals: "a".."b" => "ab" */
-function resolveConcats(src){
-  return safeReplaceAll(src, /("([^"\\]|\\.)*")\s*\.\.\s*("([^"\\]|\\.)*")/g, (m,a,b)=> {
-    // remove quotes then unescape
-    const s1 = a.slice(1,-1), s2 = b.slice(1,-1);
-    return `"${unescapeLuauStringLiteral(s1)+unescapeLuauStringLiteral(s2)}"`;
-  });
-}
+        function minifyCode(code) {
+            return code
+                .replace(/\s+/g, ' ')
+                .replace(/ ?([=+-/*<>&|~^%]) ?/g, '$1')
+                .replace(/ ?([(),;]) ?/g, '$1')
+                .replace(/^\s+|\s+$/g, '');
+        }
 
-/* Inline trivial functions that only return a constant: local function f() return "x" end -> local f = "x" */
-function inlineTrivialReturns(src){
-  return src.replace(/local\s+function\s+(\w+)\s*\(\s*\)\s*return\s+((?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[0-9\+\-\*\/\s\(\)]+))\s*end/g, (m,name,ret)=> {
-    // try to simplify numeric returns
-    const trimmed = ret.trim();
-    if(/^".*"$/.test(trimmed) || /^'.*'$/.test(trimmed)) return `local ${name} = ${trimmed}`;
-    const evaled = evalSimpleNumeric(trimmed);
-    if(/^[0-9\.\-]+$/.test(evaled)) return `local ${name} = ${evaled}`;
-    return m;
-  });
-}
+        function simplifyCode(code) {
+            let lines = code
+                .replace(/;/g, ';\n')
+                .replace(/(\)\s*\{)/g, '$1\n')
+                .replace(/function\s+(_0x\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
+                .replace(/then\s+([^;\n]+)/g, 'then\n$1')
+                .replace(/end\s+([^;\n]+)/g, 'end\n$1')
+                .replace(/do\s+([^;\n]+)/g, 'do\n$1')
+                .replace(/return\s+([^;\n]+)/g, 'return\n$1')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line);
+            let indentLevel = 0;
+            let result = [];
+            const blockStarters = [/function.*\(.*\)$/, /if.*then$/, /for.*do$/, /do$/, /else$/, /elseif.*then$/];
+            const blockEnders = [/^end$/];
+            for (let line of lines) {
+                line = line.replace(/;$/, '');
+                if (blockEnders.some(regex => regex.test(line))) {
+                    indentLevel = Math.max(0, indentLevel - 1);
+                }
+                result.push('    '.repeat(indentLevel) + line);
+                if (blockStarters.some(regex => regex.test(line))) {
+                    indentLevel++;
+                }
+            }
+            return result.join('\n');
+        }
 
-/* Heuristic variable renaming (only local names) - purely cosmetic */
-function renameLocals(src){
-  const names = new Map();
-  let counter = 1;
-  return src.replace(/\blocal\s+([A-Za-z_]\w*)\b/g, (m,name) => {
-    if(name.length>6 && /^_?0x/.test(name) && !names.has(name)){
-      names.set(name, 'var'+(counter++));
-    }
-    return m;
-  }).replace(/\b(_?0x[a-fA-F0-9]{4,})\b/g, (m,old) => names.get(old) || old);
-}
+        function unescapeLuauString(str) {
+            try {
+                let decoded = '';
+                let i = 0;
+                while (i < str.length) {
+                    if (str[i] === '\\') {
+                        i++;
+                        if (str[i] === 'x') {
+                            i++;
+                            let hex = str.substr(i, 2);
+                            i += 2;
+                            let charCode = parseInt(hex, 16);
+                            if (!isNaN(charCode)) {
+                                decoded += String.fromCharCode(charCode);
+                            } else {
+                                decoded += '\\x' + hex;
+                                i -= 2;
+                            }
+                        } else if (/\d/.test(str[i])) {
+                            let num = '';
+                            while (/\d/.test(str[i]) && num.length < 3) {
+                                num += str[i];
+                                i++;
+                            }
+                            let charCode = parseInt(num, 10);
+                            decoded += asciiTable[charCode] || String.fromCharCode(charCode);
+                            i--;
+                        } else {
+                            switch (str[i]) {
+                                case 'a': decoded += '\a'; break;
+                                case 'b': decoded += '\b'; break;
+                                case 'f': decoded += '\f'; break;
+                                case 'n': decoded += '\n'; break;
+                                case 'r': decoded += '\r'; break;
+                                case 't': decoded += '\t'; break;
+                                case 'v': decoded += '\v'; break;
+                                case '\\': decoded += '\\'; break;
+                                case '\'': decoded += '\''; break;
+                                case '"': decoded += '"'; break;
+                                default: decoded += '\\' + str[i]; break;
+                            }
+                            i++;
+                        }
+                    } else {
+                        decoded += str[i];
+                        i++;
+                    }
+                }
+                return decoded;
+            } catch (e) {
+                return str;
+            }
+        }
 
-/* Pretty printer: very small indentation helper */
-function prettyPrint(src){
-  const lines = src.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  let indent=0; const out=[];
-  for(const ln of lines){
-    if(/^\bend\b/.test(ln) || /^\belseif\b/.test(ln) || /^\belse\b/.test(ln)){ indent = Math.max(0, indent-1); }
-    out.push('  '.repeat(indent) + ln);
-    if(/\b(function|then|do|repeat)\b/.test(ln) && !/\bend\b/.test(ln)) indent++;
-  }
-  return out.join('\n');
-}
+        function evaluateNumberExpression(expr) {
+            try {
+                const safeEval = (str) => {
+                    str = str.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, (m, a, op, b) => {
+                        a = Number(a);
+                        b = Number(b);
+                        switch (op) {
+                            case '+': return a + b;
+                            case '-': return a - b;
+                            case '*': return a * b;
+                            case '/': return a / b;
+                        }
+                    });
+                    str = str.replace(/(\d+)\s*\^\s*(\d+)/g, (m, a, b) => Math.pow(Number(a), Number(b)));
+                    str = str.replace(/(\w+)\(\)/g, (match, funcName) => {
+                        const funcMatch = str.match(new RegExp(`function\\s+${funcName}\\s*\\(\\)\\s*return\\s+(\\d+);?\\s*end`));
+                        return funcMatch ? funcMatch[1] : match;
+                    });
+                    return str;
+                };
+                let oldExpr;
+                do {
+                    oldExpr = expr;
+                    expr = safeEval(expr);
+                } while (expr !== oldExpr && expr.match(/[\(\)\+\-\*\/\^]|\w+\(\)/));
+                if (!isNaN(expr)) return Number(expr);
+                if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
+                    return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
+                }
+                if (expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/)) {
+                    const [_, a, b] = expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/);
+                    return Number(a) ^ Number(b);
+                }
+                if (expr.match(/^\('([a-zA-Z])'\):byte\(\)$/)) {
+                    const char = expr.match(/^\('([a-zA-Z])'\):byte\(\)$/)[1];
+                    return char.charCodeAt(0);
+                }
+                return expr;
+            } catch (e) {
+                return expr;
+            }
+        }
 
-/* Remove comments & zero-widths */
-function stripCommentsAndHidden(src){
-  // remove long comments -- cautious: only local text
-  src = src.replace(/--\[\[[\s\S]*?\]\]/g, '');
-  src = src.replace(/--[^\n]*$/gm, '');
-  src = src.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
-  return src;
-}
+        function decodeStringChar(code, aliases) {
+            let temp = code;
+            const patterns = aliases.map(alias => new RegExp(`\\b${alias}\\((?:\\s*[^)]+\\s*,?)+\\s*\\)`, 'g'));
+            patterns.push(/\bstring\.char\((?:[^)]+\s*,?)+\s*\)/g);
+            for (let pattern of patterns) {
+                let oldTemp;
+                do {
+                    oldTemp = temp;
+                    temp = temp.replace(pattern, (match) => {
+                        let nums = match.match(/[\d+\-\w\(\)\+\-\*\/]+/g).map(expr => evaluateNumberExpression(expr));
+                        if (nums.every(n => !isNaN(n) && n >= 0 && n <= 255)) {
+                            const decoded = nums.map(n => asciiTable[n] || String.fromCharCode(n)).join('');
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    });
+                } while (oldTemp !== temp);
+            }
+            return temp;
+        }
 
-/* Main analyze function */
-function analyze(){
-  let src = document.getElementById('inputCode').value || '';
-  if(!src.trim()){ document.getElementById('output').textContent = 'No input code.'; return; }
+        function decodeHexString(str) {
+            try {
+                return str.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
+                    return String.fromCharCode(parseInt(hex, 16));
+                });
+            } catch (e) {
+                return str;
+            }
+        }
 
-  // options
-  const optUnescape = document.getElementById('optUnescape').checked;
-  const optStringChar = document.getElementById('optStringChar').checked;
-  const optConcat = document.getElementById('optConcat').checked;
-  const optBase64 = document.getElementById('optBase64').checked;
-  const optXor = document.getElementById('optXor').checked;
-  const xorKey = (document.getElementById('xorKey').value || '').trim();
-  const optRename = document.getElementById('optRename').checked;
-  const optInline = document.getElementById('optInline').checked;
-  const optNumEval = document.getElementById('optNumEval').checked;
-  const optPretty = document.getElementById('optPretty').checked;
-  const optStripComments = document.getElementById('optStripComments').checked;
+        function resolveTable(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/local\s+(\w+)\s*=\s*\{([^\}]*)\}/g, (match, varName, values) => {
+                    const nums = values.split(',').map(v => v.trim()).filter(v => v);
+                    let resolvedValues = nums.map(v => {
+                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\^\\(\\)\\w\\:]+)`));
+                        if (varMatch) {
+                            const evaluated = evaluateNumberExpression(varMatch[1]);
+                            return isNaN(evaluated) ? v : evaluated;
+                        }
+                        return v;
+                    });
+                    if (resolvedValues.every(v => !isNaN(v) && Number.isInteger(Number(v)))) {
+                        const decoded = resolvedValues.map(n => asciiTable[Number(n)] || String.fromCharCode(Number(n))).join('');
+                        return `local ${varName} = "${decoded}"`;
+                    }
+                    return match;
+                });
+            } while (oldTemp !== temp);
+            return temp;
+        }
 
-  try {
-    if(optStripComments) src = stripCommentsAndHidden(src);
+        function inlineBuildFunction(code) {
+            let temp = code;
+            const buildMatch = temp.match(/local\s+function\s+(\w+)\s*\(t\)\s*local\s+\w+\s*=\s*\{}\s*for\s+i=1,#t\s+do\s+\w+\[i\]\s*=\s*string\.char\(t\[i\]\)\s*end\s*return\s+table\.concat\(\w+\)\s*end/);
+            if (buildMatch) {
+                const buildName = buildMatch[1];
+                let oldTemp;
+                do {
+                    oldTemp = temp;
+                    temp = temp.replace(new RegExp(`\\b${buildName}\\(\\s*(\\w+)\\s*\\)`, 'g'), (match, tableVar) => {
+                        const tableMatch = temp.match(new RegExp(`local\\s+${tableVar}\\s*=\\s*"([^"]*)"`));
+                        if (tableMatch) {
+                            return `"${tableMatch[1]}"`;
+                        }
+                        return match;
+                    });
+                } while (oldTemp !== temp);
+                temp = temp.replace(/local\s+function\s+\w+\s*\(t\)\s*local\s+\w+\s*=\s*\{}\s*for\s+i=1,#t\s+do\s+\w+\[i\]\s*=\s*string\.char\(t\[i\]\)\s*end\s*return\s+table\.concat\(\w+\)\s*end/, '');
+            }
+            return temp;
+        }
 
-    if(optNumEval){
-      // simple numeric expression simplifier (parenthesized small expressions)
-      src = src.replace(/\(([0-9\+\-\*\/\s\^]+)\)/g, (m,p)=> {
-        const s = evalSimpleNumeric(p);
-        return (s===p)? m : s;
-      });
-    }
+        function jsB64Decode(str, tbl) {
+            let r = [];
+            let t = [];
+            for (let i = 0; i < str.length; i++) {
+                let c = str[i];
+                if (c !== '=') {
+                    let v = tbl.indexOf(c);
+                    if (v !== -1) {
+                        t.push(v);
+                    } else {
+                        return "";
+                    }
+                }
+            }
+            for (let i = 0; i < t.length; i += 4) {
+                let v1 = t[i] || 0;
+                let v2 = t[i + 1] || 0;
+                let v3 = t[i + 2] || 0;
+                let v4 = t[i + 3] || 0;
+                let a = ((v1 * 4 + (v2 >> 4)) >> 0) & 0xFF;
+                let b = (((v2 & 15) * 16 + (v3 >> 2)) >> 0) & 0xFF;
+                let c = (((v3 & 3) * 64 + v4) >> 0) & 0xFF;
+                r.push(String.fromCharCode(a));
+                if (t[i + 2] != undefined) r.push(String.fromCharCode(b));
+                if (t[i + 3] != undefined) r.push(String.fromCharCode(c));
+            }
+            try {
+                return decodeURIComponent(escape(r.join('')));
+            } catch (e) {
+                return r.join('');
+            }
+        }
 
-    if(optStringChar) src = resolveStringCharCalls(src);
+        function jsXorDecode(str, keys) {
+            let result = [];
+            let keyLen = keys.length;
+            for (let i = 0; i < str.length; i++) {
+                let char = str.charCodeAt(i);
+                let key = keys[i % keyLen];
+                result.push(String.fromCharCode((char ^ key) % 256));
+            }
+            return result.join('');
+        }
 
-    if(optConcat) src = resolveConcats(src);
+        function customXorDecode(str, key) {
+            let result = [];
+            for (let i = 0; i < str.length; i++) {
+                let charCode = str.charCodeAt(i);
+                let keyCode = key.charCodeAt(i % key.length);
+                result.push(String.fromCharCode((charCode ^ keyCode) % 256));
+            }
+            return result.join('');
+        }
 
-    if(optUnescape){
-      // unescape string literals
-      src = safeReplaceAll(src, /(["'])(?:\\.|[^\\])*?\1/g, (m)=> {
-        const q = m[0]; const inner = m.slice(1,-1);
-        const dec = unescapeLuauStringLiteral(inner);
-        // re-escape quotes inside
-        return q + dec.replace(new RegExp(q,'g'), '\\'+q) + q;
-      });
-    }
+        function decodeComplexString(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/"([A-Za-z0-9+\/=]+)"/g, (match, str) => {
+                    try {
+                        const standardTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                        const decoded = jsB64Decode(str, standardTable);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                temp = temp.replace(/b64decode\("([A-Za-z0-9+\/=]+)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
+                    try {
+                        const decoded = jsB64Decode(str, tbl);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
+                    try {
+                        const keys = keysStr.split(',').map(k => Number(k.trim()));
+                        const decoded = jsXorDecode(unescapeLuauString(str), keys);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                temp = temp.replace(/v7\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)/g, (match, str, key) => {
+                    try {
+                        let decodedStr = str.replace(/\\(\d{1,3})/g, (m, n) => String.fromCharCode(parseInt(n, 10)));
+                        let decodedKey = key.replace(/\\(\d{1,3})/g, (m, n) => String.fromCharCode(parseInt(n, 10)));
+                        let decoded = customXorDecode(decodedStr, decodedKey);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        decodedStr = unescapeLuauString(str);
+                        decodedKey = unescapeLuauString(key);
+                        decoded = customXorDecode(decodedStr, decodedKey);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+                temp = temp.replace(/"((?:\\x[0-9A-Fa-f]{2})+)"/g, (match, hexStr) => {
+                    try {
+                        const decoded = decodeHexString(hexStr);
+                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
+                            return `"${decoded}"`;
+                        }
+                        return match;
+                    } catch (e) {
+                        return match;
+                    }
+                });
+            } while (oldTemp !== temp);
+            temp = temp.replace(/local\s+function\s+v7\s*\(v10,v11\)\s*local\s+v12\s*=\s*\{\};\s*for\s+v14=1,\s*#v10\s*do\s+v6\(v12,v0\(v4\(v1\(v2\(v10,v14,v14\s*\+\s*1\s*\)\),v1\(v2\(v11,1\s*\+\s*\(v14%\s*#v11\)\s*,1\s*\+\s*\(v14%\s*#v11\)\s*\+1\s*\)\)\)%256\s*\)\);\s*end\s*return\s+v5\(v12\);\s*end/, '');
+            return temp;
+        }
 
-    if(optBase64){
-      // try to decode quoted base64 strings
-      src = src.replace(/(["'])([A-Za-z0-9+\/=]{8,})\1/g, (m,quote,content) => {
-        const dec = tryBase64Decode(content);
-        return dec ? (quote+dec+quote) : m;
-      });
-    }
+        function resolveStringConcatenation(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/local\s+(\w+)\s*=\s*([^;]*);/g, (match, varName, expr) => {
+                    if (expr.includes('..')) {
+                        const parts = expr.split('..').map(p => p.trim());
+                        let resolvedParts = parts.map(p => {
+                            const strMatch = p.match(/^"([^"]*)"$|^'([^']*)'$/);
+                            if (strMatch) {
+                                return strMatch[1] || strMatch[2];
+                            }
+                            const varMatch = temp.match(new RegExp(`local\\s+${p}\\s*=\\s*"([^"]*)"`));
+                            if (varMatch) {
+                                return varMatch[1];
+                            }
+                            if (p === '"\\o"') {
+                                return 'o';
+                            }
+                            return p;
+                        });
+                        if (resolvedParts.every(p => typeof p === 'string')) {
+                            const concatenated = resolvedParts.join('');
+                            return `local ${varName} = "${concatenated}";`;
+                        }
+                    }
+                    return match;
+                });
+                temp = temp.replace(/(\w+)\s*\.\.\s*(\w+)/g, (match, var1, var2) => {
+                    const var1Match = temp.match(new RegExp(`local\\s+${var1}\\s*=\\s*"([^"]*)"`));
+                    const var2Match = temp.match(new RegExp(`local\\s+${var2}\\s*=\\s*"([^"]*)"`));
+                    if (var1Match && var2Match) {
+                        return `"${var1Match[1] + var2Match[1]}"`;
+                    }
+                    return match;
+                });
+                temp = temp.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, (match, str1, str2) => {
+                    return `"${str1 + str2}"`;
+                });
+            } while (oldTemp !== temp);
+            return temp;
+        }
 
-    if(optXor && xorKey){
-      // attempt xor decode of quoted strings
-      src = src.replace(/(["'])([^"']{4,200})\1/g, (m,quote,content) => {
-        const dec = xorDecodeWithKey(content, xorKey);
-        return dec ? (quote+dec+quote) : m;
-      });
-    }
+        function renameVariables(code) {
+            let temp = code;
+            const varAssignments = new Map();
+            const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'coroutine', 'print']);
+            const serviceNames = {
+                'Players': 'Players',
+                'RunService': 'RunService',
+                'UserInputService': 'UserInputService',
+                'Workspace': 'Workspace'
+            };
+            const patternNames = {
+                'game:GetService\\("([^"]+)"\\)': (match, service) => serviceNames[service] || `Service${service}`,
+                'game.Players.LocalPlayer': 'LocalPlayer',
+                'workspace.CurrentCamera': 'Camera',
+                'true': 'isEnabled',
+                'false': 'isTracking',
+                'nil': 'target',
+                '\\d+\\.\\d+': 'updateInterval',
+                '0': 'timer',
+                '"[^"]*"': 'greeting',
+                'function.*\\(.*\\)$': (match, code) => {
+                    if (code.includes('string.char')) return 'buildString';
+                    if (code.includes('print')) return 'printMessage';
+                    return 'runFunction';
+                },
+                '_0x[A-F0-9]+': (match, code) => {
+                    if (code.includes('string.char')) return 'buildString';
+                    if (code.includes('print')) return 'printMessage';
+                    return 'runFunction';
+                },
+                'timer\\d*': (match, code) => {
+                    if (code.includes(':byte()')) return 'charCode';
+                    if (code.includes('string.char')) return 'resultChar';
+                    if (code.includes('print')) return 'printFunc';
+                    return 'counter';
+                },
+                '_stash': 'tableRef'
+            };
+            const lines = temp.split('\n');
+            for (let line of lines) {
+                const varMatch = line.match(/local\s+(\w+)\s*=\s*([^\n;]*)/);
+                if (varMatch) {
+                    const [, varName, expr] = varMatch;
+                    varAssignments.set(varName, expr.trim());
+                }
+            }
+            const nameMap = new Map();
+            varAssignments.forEach((expr, varName) => {
+                if (usedNames.has(varName)) return;
+                let newName = varName;
+                for (const [pattern, name] of Object.entries(patternNames)) {
+                    if (typeof name === 'function') {
+                        const match = expr.match(new RegExp(pattern));
+                        if (match) {
+                            newName = name(match, expr);
+                            break;
+                        }
+                    } else if (expr.match(new RegExp(pattern))) {
+                        newName = name;
+                        break;
+                    }
+                }
+                let baseName = newName;
+                let counter = 1;
+                while (usedNames.has(newName)) {
+                    newName = baseName + (counter > 1 ? counter : '');
+                    counter++;
+                }
+                nameMap.set(varName, newName);
+                usedNames.add(newName);
+            });
+            nameMap.forEach((newName, oldName) => {
+                const regex = new RegExp(`\\b${oldName}\\b(?=\\s*[^\\w]|$)`, 'g');
+                temp = temp.replace(regex, newName);
+            });
+            return temp;
+        }
 
-    if(optInline) src = inlineTrivialReturns(src);
+        function inlineFunctions(code) {
+            let temp = code;
+            let oldTemp;
+            do {
+                oldTemp = temp;
+                temp = temp.replace(/local\s+function\s+(_0x\w+)\s*\(\)\s*return\s+([^;]*);?\s*end/g, (match, funcName, returnValue) => {
+                    const evaluated = evaluateNumberExpression(returnValue);
+                    if (!isNaN(evaluated) || returnValue.match(/^"[^"]*"$/)) {
+                        return `local ${funcName} = ${evaluated || returnValue}`;
+                    }
+                    return match;
+                });
+                temp = temp.replace(/\b(_0x\w+)\(\)/g, (match, funcName) => {
+                    const varMatch = temp.match(new RegExp(`local\\s+${funcName}\\s*=\\s*([^;\n]*)`));
+                    if (varMatch) {
+                        return varMatch[1];
+                    }
+                    return match;
+                });
+            } while (oldTemp !== temp);
+            return temp;
+        }
 
-    if(optRename) src = renameLocals(src);
+        function normalizeCode(code) {
+            let temp = code.replace(/\s+/g, ' ');
+            const keywords = {
+                'l\\s*o\\s*c\\s*a\\s*l|lo\\s*ca\\s*l|loc\\s*al|lo\\s*cal|local\\s*\\w+': 'local',
+                'f\\s*u\\s*n\\s*c\\s*t\\s*i\\s*o\\s*n|fu\\s*nc\\s*ti\\s*on|fun\\s*cti\\s*on': 'function',
+                'r\\s*e\\s*t\\s*u\\s*r\\s*n|re\\s*tu\\s*rn|ret\\s*urn': 'return',
+                't\\s*h\\s*e\\s*n|t\\s*he\\s*n|th\\s*en': 'then',
+                'e\\s*n\\s*d|en\\s*d|enda': 'end',
+                's\\s*t\\s*r\\s*i\\s*n\\s*g\\s*\\.\\s*c\\s*h\\s*a\\s*r|st\\s*ri\\s*ng\\s*\\.\\s*ch\\s*ar': 'string.char',
+                'c\\s*o\\s*r\\s*o\\s*u\\s*t\\s*i\\s*n\\s*e\\s*\\.\\s*w\\s*r\\s*a\\s*p|co\\s*ro\\s*ut\\s*in\\s*e\\s*\\.\\s*wr\\s*ap': 'coroutine.wrap',
+                'b\\s*y\\s*t\\s*e|by\\s*te': 'byte',
+                'p\\s*r\\s*i\\s*n\\s*t|pr\\s*in\\s*t|pri\\s*nt': 'print',
+                't\\s*r\\s*u\\s*e|tr\\s*ue': 'true',
+                'p\\s*r\\s*o|pr\\s*o': 'pro'
+            };
+            for (const [pattern, replacement] of Object.entries(keywords)) {
+                const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
+                temp = temp.replace(regex, replacement);
+            }
+            temp = temp.replace(/"\s*([^"]*?)\s*"/g, (match, str) => {
+                const cleaned = str.replace(/\s+/g, '');
+                return `"${cleaned}"`;
+            });
+            temp = temp.replace(/(\w)\s+(\w)\b/g, '$1$2');
+            temp = temp.replace(/(\w+)\s*([=+\-*/<>&|~^%])\s*(\w+)/g, '$1 $2 $3');
+            temp = temp.replace(/(\w+)\s*([(),;])\s*(\w+)/g, '$1$2 $3');
+            temp = temp
+                .replace(/(\blocal\s+\w+\s*=\s*[^;]+)(?=\s*($|\blocal|\bif|\bfunction|\bfor|\bwhile|\bend|\belse))/g, '$1\n')
+                .replace(/(\bif\s+[^;]+then\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
+                .replace(/(\bfor\s+[^;]+do\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
+                .replace(/(\bend\b)/g, '$1\n')
+                .replace(/\n+/g, '\n')
+                .trim();
+            return temp;
+        }
 
-    if(optPretty) src = prettyPrint(src);
+        function deobfuscate(type) {
+            try {
+                let code = document.getElementById('inputCode').value.trim();
+                if (!code) {
+                    document.getElementById('output').textContent = 'No code to deobfuscate.';
+                    return;
+                }
+                let temp = normalizeCode(code);
+                temp = removeComments(temp);
+                const stringChar = document.getElementById('stringChar').checked;
+                const removeASCII = document.getElementById('removeASCII').checked;
+                const base64 = document.getElementById('base64').checked;
+                const xor = document.getElementById('xor').checked;
+                const rename = document.getElementById('rename').checked;
+                const numObf = document.getElementById('numObf').checked;
+                const strSplit = document.getElementById('strSplit').checked;
+                const control = document.getElementById('control').checked;
+                const deadCode = document.getElementById('deadCode').checked;
+                const antiDump = document.getElementById('antiDump').checked;
+                const minify = document.getElementById('minify').checked;
+                const simplify = document.getElementById('simplify').checked;
+                let outputType = 'Deobfuscate All';
+                temp = temp.replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2');
+                let stringCharAliases = ['string\\.char'];
+                let aliasMatches;
+                const aliasRegex = /local\s+(\w+)\s*=\s*string\.char\b/g;
+                while ((aliasMatches = aliasRegex.exec(temp)) !== null) {
+                    stringCharAliases.push(aliasMatches[1]);
+                }
+                temp = temp.replace(/local\s+function\s+checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
+                temp = temp.replace(/local\s+function\s+checkTamper[\s\S]*?checkTamper\(\)/g, '');
+                temp = temp.replace(/spawn\(function\(\)\s*while\s+true\s+do\s+wait\(10\)\s+end\s+end\)/g, '');
+                temp = temp.replace(/local\s+\w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
+                if (antiDump || type === 'all') {
+                    temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
+                    temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+                }
+                if (numObf || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/(\d+)\s*\^\s*(\d+)/g, evaluateNumberExpression);
+                        temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/\('([a-zA-Z])'\):byte\(\)/g, evaluateNumberExpression);
+                    } while (oldTemp !== temp);
+                }
+                if (stringChar || type === 'all') {
+                    temp = resolveTable(temp);
+                }
+                if (stringChar || type === 'all') {
+                    let oldTemp;
+                    do {
+                        oldTemp = temp;
+                        temp = decodeStringChar(temp, stringCharAliases);
+                    } while (oldTemp !== temp);
+                }
+                if (stringChar || type === 'all') {
+                    temp = inlineBuildFunction(temp);
+                }
+                if (base64 || xor || type === 'all') {
+                    temp = decodeComplexString(temp);
+                }
+                if (strSplit || type === 'all') {
+                    temp = resolveStringConcatenation(temp);
+                }
+                if (numObf || type === 'all') {
+                    temp = inlineFunctions(temp);
+                }
+                let oldTemp;
+                do {
+                    oldTemp = temp;
+                    temp = temp.replace(/_G\[(".*?")\]\((.*?)\)/g, (match, fn, args) => {
+                        return `${fn.slice(1, -1)}(${args})`;
+                    });
+                    temp = temp.replace(/_G\[(\w+)\]\((.*?)\)/g, (match, varName, args) => {
+                        const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
+                        if (varMatch) {
+                            const fnName = varMatch[1];
+                            const argMatch = temp.match(new RegExp(`local\\s+${args}\\s*=\\s*"([^"]*)"`));
+                            if (argMatch) {
+                                return `${fnName}("${argMatch[1]}")`;
+                            }
+                            return `${fnName}(${args})`;
+                        }
+                        return match;
+                    });
+                    temp = temp.replace(/_G\[(\w+)\]\(\)/g, (match, varName) => {
+                        const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
+                        if (varMatch) {
+                            return `${varMatch[1]}()`;
+                        }
+                        return match;
+                    });
+                    temp = temp.replace(/(\w+)\[(".*?")\]\((.*?)\)/g, (match, tableVar, fn, args) => {
+                        if (fn === '"print"') {
+                            return `print(${args})`;
+                        }
+                        return match;
+                    });
+                } while (oldTemp !== temp);
+                if (removeASCII || type === 'all') {
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/"((?:\\(?:\d{1,3}|x[0-9A-Fa-f]{2})|[^"\\])*)"/g, (match, str) => {
+                            const decoded = unescapeLuauString(str);
+                            return `"${decoded}"`;
+                        });
+                    } while (oldTemp !== temp);
+                }
+                if (control || deadCode || type === 'all') {
+                    do {
+                        oldTemp = temp;
+                        temp = temp.replace(/if\s+true\s+then\s*([\s\S]*?)\s*end/g, '$1');
+                        temp = temp.replace(/if\s+false\s+then[\s\S]*?end/g, '');
+                        temp = temp.replace(/if\s+nil\s+then[\s\S]*?end/g, '');
+                        temp = temp.replace(/for\s+\w+\s*=\s*1\s*,\s*0\s*do[\s\S]*?end/g, '');
+                        temp = temp.replace(/local\s+\w+\s*=\s*nil;\s*if\s+\w+\s+then[\s\S]*?end/g, '');
+                        temp = temp.replace(/local\s+\w+\s*=\s*function\(\)\s*return\s+end;\s*\w+\(\)/g, '');
+                        temp = temp.replace(/local\s+\w+\s*=\s*math\.random\(\)\s*>\s*[\d\.]+;\s*if\s+\w+\s+then\s+end/g, '');
+                        temp = temp.replace(/coroutine\.wrap\(function\(\)\s*([\s\S]*?)\s*end\)\(\)/g, '$1');
+                    } while (oldTemp !== temp);
+                }
+                if (rename || type === 'all') {
+                    temp = renameVariables(temp);
+                }
+                if (minify) {
+                    temp = minifyCode(temp);
+                } else if (simplify) {
+                    temp = simplifyCode(temp);
+                }
+                document.getElementById('output-type').textContent = outputType;
+                document.getElementById('output').textContent = temp;
+            } catch (e) {
+                document.getElementById('output').textContent = `Error: ${e.message}`;
+            }
+        }
 
-    document.getElementById('output').textContent = src;
-  } catch(err){
-    document.getElementById('output').textContent = 'Error during analysis: ' + err.message;
-  }
-}
+        function copyCode() {
+            const output = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(output).then(() => {
+                alert('Code copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy code: ' + err);
+            });
+        }
 
-function copyOutput(){
-  const txt = document.getElementById('output').textContent || '';
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(txt).then(()=> alert('Copied to clipboard.'));
-  } else {
-    alert('Clipboard not available.');
-  }
-}
-
-function downloadOutput(){
-  const text = document.getElementById('output').textContent || '';
-  const blob = new Blob([text], {type:'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'inspected.lua'; document.body.appendChild(a);
-  a.click(); a.remove(); URL.revokeObjectURL(url);
-}
-
-function resetAll(){
-  document.getElementById('inputCode').value = '';
-  document.getElementById('output').textContent = 'Results will appear here after you click Analyze.';
-  document.getElementById('xorKey').value = '';
-}
-</script>
+        function showSupport() {
+            alert('For support, contact the developer via GitHub or Discord.');
+        }
+    </script>
 </body>
 </html>
