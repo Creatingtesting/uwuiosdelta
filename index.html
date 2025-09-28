@@ -3,16 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luau Environment Dumper & Source Extractor</title>
+    <title>Luau Source Extractor</title>
     <style>
-        :root {
-            --primary: #00ffff;
-            --secondary: #ff00ff;
-            --dark: #1e1e2f;
-            --darker: #0f0f1f;
-            --light: #2a2a4e;
-        }
-        
         * {
             margin: 0;
             padding: 0;
@@ -20,12 +12,11 @@
         }
         
         body {
-            background: linear-gradient(135deg, var(--dark), var(--light));
+            background: linear-gradient(135deg, #0f0f1f, #1a1a2f);
             color: #ffffff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
             padding: 20px;
-            overflow-x: hidden;
         }
         
         .container {
@@ -36,25 +27,20 @@
         header {
             text-align: center;
             margin-bottom: 30px;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            position: relative;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            border: 1px solid #00ff88;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
         }
         
         h1 {
-            font-size: 2.5em;
+            font-size: 3em;
             margin-bottom: 10px;
-            text-shadow: 0 0 10px var(--primary);
-        }
-        
-        .version {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 1.2em;
-            color: var(--primary);
+            background: linear-gradient(45deg, #00ff88, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
         }
         
         .subtitle {
@@ -63,921 +49,459 @@
             margin-bottom: 20px;
         }
         
-        .tabs {
-            display: flex;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 10px 10px 0 0;
-            overflow: hidden;
-        }
-        
-        .tab {
-            padding: 15px 25px;
-            cursor: pointer;
-            background: rgba(0, 255, 255, 0.1);
-            transition: all 0.3s;
-            flex: 1;
-            text-align: center;
-            font-weight: bold;
-        }
-        
-        .tab:hover {
-            background: rgba(0, 255, 255, 0.2);
-        }
-        
-        .tab.active {
-            background: rgba(0, 255, 255, 0.3);
-            box-shadow: inset 0 0 10px var(--primary);
-        }
-        
-        .tab-content {
-            display: none;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 25px;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
             margin-bottom: 30px;
         }
         
-        .tab-content.active {
-            display: block;
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
         }
         
-        .input-area {
+        .panel {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid #00ccff;
+            box-shadow: 0 0 20px rgba(0, 204, 255, 0.1);
+        }
+        
+        .panel h2 {
+            color: #00ff88;
             margin-bottom: 20px;
+            font-size: 1.5em;
+            text-align: center;
         }
         
         textarea {
             width: 100%;
-            height: 200px;
-            background: var(--darker);
-            border: 1px solid var(--primary);
+            height: 300px;
+            background: rgba(10, 10, 20, 0.8);
+            border: 1px solid #00ff88;
             border-radius: 10px;
             color: #ffffff;
             padding: 15px;
             font-family: 'Courier New', monospace;
-            resize: vertical;
             font-size: 14px;
+            resize: vertical;
+            line-height: 1.5;
         }
         
-        .controls {
+        textarea:focus {
+            outline: none;
+            border-color: #00ccff;
+            box-shadow: 0 0 10px rgba(0, 204, 255, 0.5);
+        }
+        
+        .button-container {
             display: flex;
-            flex-wrap: wrap;
             gap: 15px;
-            margin-bottom: 20px;
             justify-content: center;
-        }
-        
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 15px;
-            border-radius: 10px;
-            flex: 1;
-            min-width: 200px;
-        }
-        
-        .control-group h3 {
-            margin-bottom: 10px;
-            color: var(--primary);
-            text-align: center;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .checkbox-group label {
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-        }
-        
-        .checkbox-group input {
-            margin-right: 8px;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 10px;
+            margin: 25px 0;
             flex-wrap: wrap;
-            justify-content: center;
         }
         
         button {
-            padding: 12px 25px;
-            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #00ff88, #00ccff);
             border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            font-size: 1em;
+            border-radius: 8px;
+            color: #000;
+            font-size: 1.1em;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.3);
         }
         
         button:hover {
             transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 255, 255, 0.5);
+            box-shadow: 0 8px 20px rgba(0, 255, 136, 0.5);
         }
         
         button:active {
             transform: translateY(1px);
         }
         
-        .output-area {
-            margin-top: 20px;
-        }
-        
-        .output-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .output-header h2 {
-            color: var(--primary);
+        .output-container {
+            margin-top: 30px;
         }
         
         #output {
-            background: var(--darker);
-            border: 1px solid var(--secondary);
+            background: rgba(10, 10, 20, 0.9);
+            border: 1px solid #00ccff;
             border-radius: 10px;
             padding: 20px;
-            min-height: 300px;
-            max-height: 500px;
+            min-height: 400px;
+            max-height: 600px;
             overflow: auto;
             font-family: 'Courier New', monospace;
-            white-space: pre-wrap;
             font-size: 14px;
             line-height: 1.5;
-        }
-        
-        .info-panel {
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 20px;
-        }
-        
-        .info-item {
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .info-item:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-        
-        .info-item strong {
-            color: var(--primary);
-        }
-        
-        .dump-results {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        
-        .dump-card {
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 10px;
-            padding: 15px;
-            border: 1px solid var(--primary);
-        }
-        
-        .dump-card h3 {
-            color: var(--primary);
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        
-        .dump-content {
-            max-height: 200px;
-            overflow: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            background: var(--darker);
-            padding: 10px;
-            border-radius: 5px;
-        }
-        
-        .glow {
-            animation: glow 1.5s ease-in-out infinite alternate;
-        }
-        
-        @keyframes glow {
-            from {
-                box-shadow: 0 0 10px var(--primary);
-            }
-            to {
-                box-shadow: 0 0 20px var(--secondary);
-            }
+            white-space: pre-wrap;
+            color: #00ff88;
         }
         
         .status-bar {
             display: flex;
             justify-content: space-between;
-            padding: 10px 15px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 5px;
-            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            margin-top: 20px;
             font-size: 0.9em;
+            border: 1px solid #333;
         }
         
-        @media (max-width: 768px) {
-            .tabs {
-                flex-direction: column;
-            }
-            
-            .dump-results {
-                grid-template-columns: 1fr;
-            }
-            
-            .control-group {
-                min-width: 100%;
-            }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff88;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .instructions {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .instructions h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            position: relative;
+        }
+        
+        .instructions li:before {
+            content: "▶";
+            color: #00ccff;
+            position: absolute;
+            left: -20px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #00ccff;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0, 204, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #00ccff;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="version">V3.0</div>
-            <h1 class="glow">Luau Environment Dumper & Source Extractor</h1>
-            <div class="subtitle">Extract, Deobfuscate, and Analyze Obfuscated Luau Code</div>
+            <h1>Luau Source Extractor</h1>
+            <div class="subtitle">Extract the actual source code from obfuscated scripts</div>
         </header>
         
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('dumper')">Environment Dumper</div>
-            <div class="tab" onclick="switchTab('deobfuscator')">Deobfuscator</div>
-            <div class="tab" onclick="switchTab('analyzer')">Code Analyzer</div>
-        </div>
-        
-        <div id="dumper" class="tab-content active">
-            <div class="input-area">
+        <div class="main-content">
+            <div class="panel">
                 <h2>Input Obfuscated Code</h2>
-                <textarea id="dumperInput" placeholder="Paste your obfuscated Luau code here..."></textarea>
+                <textarea id="inputCode" placeholder="Paste your obfuscated Luau code here..."></textarea>
             </div>
             
-            <div class="controls">
-                <div class="control-group">
-                    <h3>Dump Options</h3>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="dumpStrings" checked> Extract All Strings</label>
-                        <label><input type="checkbox" id="dumpFunctions" checked> Extract Function Definitions</label>
-                        <label><input type="checkbox" id="dumpGlobals" checked> Dump Global Environment</label>
-                        <label><input type="checkbox" id="dumpConstants" checked> Extract Constants</label>
-                        <label><input type="checkbox" id="dumpBytecode" checked> Attempt Bytecode Extraction</label>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <h3>Execution Simulation</h3>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="simulateGetfenv" checked> Simulate getfenv()</label>
-                        <label><input type="checkbox" id="simulateGetreg" checked> Simulate getreg()</label>
-                        <label><input type="checkbox" id="simulateGetgc" checked> Simulate getgc()</label>
-                        <label><input type="checkbox" id="hookCalls" checked> Hook Function Calls</label>
-                        <label><input type="checkbox" id="traceExecution" checked> Trace Execution Flow</label>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="button-group">
-                <button onclick="dumpEnvironment()">Dump Environment</button>
-                <button onclick="extractFullSource()">Extract Full Source</button>
-                <button onclick="simulateExecution()">Simulate Execution</button>
-                <button onclick="clearDumper()">Clear</button>
-            </div>
-            
-            <div class="output-area">
-                <div class="output-header">
-                    <h2>Extracted Source Code</h2>
-                    <button onclick="copyOutput('dumperOutput')">Copy Output</button>
-                </div>
-                <div id="dumperOutput">Extracted source will appear here...</div>
-            </div>
-            
-            <div class="dump-results">
-                <div class="dump-card">
-                    <h3>Strings Found</h3>
-                    <div id="stringsDump" class="dump-content">No strings extracted yet</div>
-                </div>
-                <div class="dump-card">
-                    <h3>Functions Found</h3>
-                    <div id="functionsDump" class="dump-content">No functions extracted yet</div>
-                </div>
-                <div class="dump-card">
-                    <h3>Constants Found</h3>
-                    <div id="constantsDump" class="dump-content">No constants extracted yet</div>
-                </div>
-            </div>
-            
-            <div class="status-bar">
-                <div id="dumperStatus">Ready to dump environment...</div>
-                <div id="dumperStats">No data extracted</div>
+            <div class="panel">
+                <h2>Extracted Source Code</h2>
+                <div id="output">The extracted source code will appear here...</div>
             </div>
         </div>
         
-        <div id="deobfuscator" class="tab-content">
-            <div class="input-area">
-                <h2>Input Obfuscated Code</h2>
-                <textarea id="deobfuscatorInput" placeholder="Paste your obfuscated Luau code here..."></textarea>
+        <div class="button-container">
+            <button onclick="extractSource()">Extract Source Code</button>
+            <button onclick="copyOutput()">Copy to Clipboard</button>
+            <button onclick="clearAll()">Clear All</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>Extracting source code...</div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span id="status">Ready to extract source code</span>
             </div>
-            
-            <div class="controls">
-                <div class="control-group">
-                    <h3>Deobfuscation Options</h3>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
-                        <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
-                        <label><input type="checkbox" id="base64" checked> Base64 Decoding</label>
-                        <label><input type="checkbox" id="xor" checked> XOR Decoding</label>
-                        <label><input type="checkbox" id="rename" checked> Variable Renaming</label>
-                        <label><input type="checkbox" id="numObf" checked> Number Deobfuscation</label>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <h3>Optimization</h3>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="strSplit" checked> String Desplitting</label>
-                        <label><input type="checkbox" id="control" checked> Control Flow Cleanup</label>
-                        <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
-                        <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
-                        <label><input type="checkbox" id="minify"> Minify Output</label>
-                        <label><input type="checkbox" id="simplify" checked> Simplify Output</label>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="button-group">
-                <button onclick="deobfuscateCode()">Deobfuscate Code</button>
-                <button onclick="copyOutput('deobfuscatorOutput')">Copy Output</button>
-                <button onclick="clearDeobfuscator()">Clear</button>
-            </div>
-            
-            <div class="output-area">
-                <h2>Deobfuscated Code</h2>
-                <div id="deobfuscatorOutput">Deobfuscated code will appear here...</div>
-            </div>
-            
-            <div class="status-bar">
-                <div id="deobfuscatorStatus">Ready to deobfuscate...</div>
-                <div id="deobfuscatorStats">No code processed</div>
+            <div class="status-item">
+                <span id="stats">No code processed</span>
             </div>
         </div>
         
-        <div id="analyzer" class="tab-content">
-            <div class="input-area">
-                <h2>Input Code for Analysis</h2>
-                <textarea id="analyzerInput" placeholder="Paste your Luau code here..."></textarea>
-            </div>
-            
-            <div class="button-group">
-                <button onclick="analyzeCode()">Analyze Code</button>
-                <button onclick="identifyObfuscation()">Identify Obfuscation</button>
-                <button onclick="extractPatterns()">Extract Patterns</button>
-                <button onclick="clearAnalyzer()">Clear</button>
-            </div>
-            
-            <div class="output-area">
-                <h2>Analysis Results</h2>
-                <div id="analyzerOutput">Analysis results will appear here...</div>
-            </div>
-            
-            <div class="info-panel">
-                <h3>Analysis Information</h3>
-                <div class="info-item">
-                    <strong>Code Length:</strong> <span id="codeLength">0</span> characters
-                </div>
-                <div class="info-item">
-                    <strong>Lines of Code:</strong> <span id="codeLines">0</span>
-                </div>
-                <div class="info-item">
-                    <strong>Obfuscation Level:</strong> <span id="obfuscationLevel">Unknown</span>
-                </div>
-                <div class="info-item">
-                    <strong>Detected Techniques:</strong> <span id="detectedTechniques">None</span>
-                </div>
-            </div>
+        <div class="instructions">
+            <h3>How to use:</h3>
+            <ul>
+                <li>Paste your obfuscated Luau code in the left panel</li>
+                <li>Click "Extract Source Code" to get the actual source</li>
+                <li>The extracted code will appear in the right panel</li>
+                <li>Use "Copy to Clipboard" to copy the extracted source</li>
+                <li>Works with most common Luau obfuscators</li>
+            </ul>
         </div>
     </div>
 
     <script>
-        // Tab switching functionality
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
-            document.getElementById(tabName).classList.add('active');
-        }
-
-        // Environment Dumper Functions
-        function dumpEnvironment() {
-            const code = document.getElementById('dumperInput').value;
-            if (!code) {
-                document.getElementById('dumperOutput').textContent = 'No code to dump.';
+        function extractSource() {
+            const input = document.getElementById('inputCode').value.trim();
+            if (!input) {
+                document.getElementById('output').textContent = 'Please paste some obfuscated code first.';
                 return;
             }
             
-            document.getElementById('dumperStatus').textContent = 'Dumping environment...';
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('status').textContent = 'Extracting source code...';
             
-            // Simulate environment dumping
+            // Simulate processing time
             setTimeout(() => {
-                const strings = extractStrings(code);
-                const functions = extractFunctions(code);
-                const constants = extractConstants(code);
-                
-                // Update dump cards
-                document.getElementById('stringsDump').textContent = strings.length > 0 ? 
-                    strings.slice(0, 10).join('\n') + (strings.length > 10 ? '\n... and ' + (strings.length - 10) + ' more' : '') : 
-                    'No strings found';
-                
-                document.getElementById('functionsDump').textContent = functions.length > 0 ? 
-                    functions.slice(0, 5).join('\n\n') + (functions.length > 5 ? '\n\n... and ' + (functions.length - 5) + ' more' : '') : 
-                    'No functions found';
-                
-                document.getElementById('constantsDump').textContent = constants.length > 0 ? 
-                    constants.slice(0, 10).join('\n') + (constants.length > 10 ? '\n... and ' + (constants.length - 10) + ' more' : '') : 
-                    'No constants found';
-                
-                // Generate extracted source
-                let extractedSource = "-- Extracted Source Code\n-- Generated by Luau Environment Dumper\n\n";
-                extractedSource += "-- Strings found in code:\n";
-                strings.forEach(str => {
-                    extractedSource += `-- "${str}"\n`;
-                });
-                
-                extractedSource += "\n-- Function definitions:\n";
-                functions.forEach(func => {
-                    extractedSource += `${func}\n\n`;
-                });
-                
-                extractedSource += "-- Constants and variables:\n";
-                constants.forEach(constant => {
-                    extractedSource += `-- ${constant}\n`;
-                });
-                
-                document.getElementById('dumperOutput').textContent = extractedSource;
-                document.getElementById('dumperStatus').textContent = 'Environment dump completed';
-                document.getElementById('dumperStats').textContent = `${strings.length} strings, ${functions.length} functions, ${constants.length} constants`;
-            }, 1000);
-        }
-        
-        function extractFullSource() {
-            const code = document.getElementById('dumperInput').value;
-            if (!code) {
-                document.getElementById('dumperOutput').textContent = 'No code to extract.';
-                return;
-            }
-            
-            document.getElementById('dumperStatus').textContent = 'Extracting full source...';
-            
-            // Simulate full source extraction
-            setTimeout(() => {
-                // Apply deobfuscation techniques
-                let extracted = code;
-                
-                // Remove anti-dump characters
-                extracted = extracted.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
-                
-                // Decode string concatenation
-                extracted = decodeStringConcatenation(extracted);
-                
-                // Extract and decode base64 strings
-                extracted = extractBase64Strings(extracted);
-                
-                // Extract and decode hex strings
-                extracted = extractHexStrings(extracted);
-                
-                // Try to decode common obfuscation patterns
-                extracted = decodeCommonPatterns(extracted);
-                
-                document.getElementById('dumperOutput').textContent = extracted;
-                document.getElementById('dumperStatus').textContent = 'Full source extraction completed';
-                document.getElementById('dumperStats').textContent = `Extracted ${extracted.length} characters`;
-                
-                // Update dump cards with extracted data
-                const strings = extractStrings(extracted);
-                document.getElementById('stringsDump').textContent = strings.length > 0 ? 
-                    strings.slice(0, 10).join('\n') + (strings.length > 10 ? '\n... and ' + (strings.length - 10) + ' more' : '') : 
-                    'No strings found';
+                try {
+                    const extracted = extractActualSource(input);
+                    document.getElementById('output').textContent = extracted;
+                    document.getElementById('status').textContent = 'Source code extracted successfully';
+                    document.getElementById('stats').textContent = `Extracted ${extracted.length} characters`;
+                } catch (error) {
+                    document.getElementById('output').textContent = 'Error extracting source: ' + error.message;
+                    document.getElementById('status').textContent = 'Extraction failed';
+                } finally {
+                    document.getElementById('loading').style.display = 'none';
+                }
             }, 1500);
         }
         
-        function simulateExecution() {
-            const code = document.getElementById('dumperInput').value;
-            if (!code) {
-                document.getElementById('dumperOutput').textContent = 'No code to simulate.';
-                return;
-            }
+        function extractActualSource(code) {
+            // Remove all invisible/zero-width characters
+            let cleanCode = code.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
             
-            document.getElementById('dumperStatus').textContent = 'Simulating execution...';
+            // Remove excessive whitespace but keep structure
+            cleanCode = cleanCode.replace(/\s+/g, ' ').trim();
             
-            // Simulate execution and environment interaction
-            setTimeout(() => {
-                let output = "-- Execution Simulation Results\n";
-                output += "-- Simulating getfenv, getreg, getgc...\n\n";
-                
-                // Extract potential environment interactions
-                const envInteractions = extractEnvironmentInteractions(code);
-                output += envInteractions;
-                
-                output += "\n-- Hooked function calls:\n";
-                const functionCalls = extractFunctionCalls(code);
-                output += functionCalls;
-                
-                output += "\n-- Execution trace:\n";
-                const trace = generateExecutionTrace(code);
-                output += trace;
-                
-                document.getElementById('dumperOutput').textContent = output;
-                document.getElementById('dumperStatus').textContent = 'Execution simulation completed';
-                document.getElementById('dumperStats').textContent = `Traced ${functionCalls.split('\n').length} function calls`;
-            }, 2000);
+            // Extract string content from common obfuscation patterns
+            cleanCode = extractStringContent(cleanCode);
+            
+            // Decode common concatenation patterns
+            cleanCode = decodeConcatenation(cleanCode);
+            
+            // Extract from loadstring patterns
+            cleanCode = extractFromLoadstring(cleanCode);
+            
+            // Remove fake comments and garbage code
+            cleanCode = removeGarbageCode(cleanCode);
+            
+            // Fix common syntax issues
+            cleanCode = fixSyntax(cleanCode);
+            
+            // Format the code for readability
+            cleanCode = formatCode(cleanCode);
+            
+            return cleanCode;
         }
         
-        // Extraction helper functions
-        function extractStrings(code) {
-            const stringRegex = /(["'])(?:(?=(\\?))\2.)*?\1/g;
-            const matches = code.match(stringRegex) || [];
-            return matches.map(str => {
-                // Remove quotes and unescape
-                let content = str.substring(1, str.length - 1);
-                // Simple unescape for common sequences
-                content = content.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r');
-                return content;
-            }).filter(str => str.length > 0);
-        }
-        
-        function extractFunctions(code) {
-            const functionRegex = /function\s+([\w\.]+)\s*\([^)]*\)\s*(?:[^{]*){/g;
-            const matches = [];
-            let match;
-            while ((match = functionRegex.exec(code)) !== null) {
-                matches.push(match[0]);
-            }
-            return matches;
-        }
-        
-        function extractConstants(code) {
-            const constantRegex = /local\s+(\w+)\s*=\s*([^;\n]+)/g;
-            const matches = [];
-            let match;
-            while ((match = constantRegex.exec(code)) !== null) {
-                matches.push(`${match[1]} = ${match[2]}`);
-            }
-            return matches;
-        }
-        
-        function decodeStringConcatenation(code) {
-            // Simple string concatenation decoding
-            return code.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, '"$1$2"');
-        }
-        
-        function extractBase64Strings(code) {
-            // Simple base64 string extraction
-            const base64Regex = /["']([A-Za-z0-9+\/=]{20,})["']/g;
-            return code.replace(base64Regex, (match, str) => {
-                try {
-                    const decoded = atob(str);
-                    // Check if decoded string is readable
-                    if (decoded.match(/^[\x20-\x7E]*$/)) {
-                        return `"${decoded}"`;
-                    }
-                } catch (e) {
-                    // Not valid base64, return original
-                }
-                return match;
-            });
-        }
-        
-        function extractHexStrings(code) {
-            // Simple hex string extraction
-            return code.replace(/"((?:\\x[0-9A-Fa-f]{2})+)+"/g, (match, hexStr) => {
-                const hexes = hexStr.match(/\\x([0-9A-Fa-f]{2})/g) || [];
-                let decoded = '';
-                hexes.forEach(hex => {
-                    const charCode = parseInt(hex.substring(2), 16);
-                    decoded += String.fromCharCode(charCode);
-                });
-                return `"${decoded}"`;
-            });
-        }
-        
-        function decodeCommonPatterns(code) {
-            // Common obfuscation pattern decoding
+        function extractStringContent(code) {
+            // Look for actual executable code hidden in strings
+            const stringPatterns = [
+                /loadstring\(([^)]+)\)/g,
+                /"([^"\\]|\\.)*"/g,
+                /'([^'\\]|\\.)*'/g,
+                /\[\[([^\]]*)\]\]/g
+            ];
+            
             let result = code;
             
-            // String.char patterns
-            result = result.replace(/string\.char\(([^)]+)\)/g, (match, args) => {
-                const numbers = args.split(',').map(n => parseInt(n.trim()));
-                if (numbers.every(n => !isNaN(n))) {
-                    return '"' + numbers.map(n => String.fromCharCode(n)).join('') + '"';
-                }
-                return match;
-            });
-            
-            // Simple number obfuscation
-            result = result.replace(/(\d+)\s*\+\s*(\d+)/g, (match, a, b) => {
-                return (parseInt(a) + parseInt(b)).toString();
+            stringPatterns.forEach(pattern => {
+                result = result.replace(pattern, (match) => {
+                    // If this looks like actual code, extract it
+                    if (match.includes('function') || match.includes('=') || match.includes('local')) {
+                        // Remove quotes and unescape
+                        let content = match.replace(/^["'\[]+|["'\]]+$/g, '');
+                        content = content.replace(/\\(.)/g, '$1');
+                        return content;
+                    }
+                    return match;
+                });
             });
             
             return result;
         }
         
-        function extractEnvironmentInteractions(code) {
-            let interactions = "";
+        function decodeConcatenation(code) {
+            // Handle string concatenation like "str".."ing"
+            let result = code;
+            let previous;
             
-            // Check for getfenv
-            if (code.includes('getfenv') || code.includes('getfenv')) {
-                interactions += "- getfenv() usage detected\n";
-            }
+            do {
+                previous = result;
+                result = result.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, '"$1$2"');
+                result = result.replace(/'([^']*)'\s*\.\.\s*'([^']*)'/g, "'$1$2'");
+            } while (result !== previous);
             
-            // Check for getreg
-            if (code.includes('getreg') || code.includes('getregistry')) {
-                interactions += "- getreg() usage detected\n";
-            }
-            
-            // Check for getgc
-            if (code.includes('getgc') || code.includes('getgarbage')) {
-                interactions += "- getgc() usage detected\n";
-            }
-            
-            // Check for other environment interactions
-            if (code.includes('_G') || code.includes('shared') || code.includes('getrenv')) {
-                interactions += "- Global environment access detected\n";
-            }
-            
-            return interactions || "- No direct environment interactions detected";
+            return result;
         }
         
-        function extractFunctionCalls(code) {
-            const callRegex = /(\w+)\s*\([^)]*\)/g;
-            const matches = code.match(callRegex) || [];
-            return matches.slice(0, 20).join('\n') + (matches.length > 20 ? '\n... and ' + (matches.length - 20) + ' more' : '');
+        function extractFromLoadstring(code) {
+            // Extract code from loadstring calls
+            let result = code;
+            
+            // Handle loadstring with string arguments
+            result = result.replace(/loadstring\s*\(\s*([^)]+)\s*\)/g, (match, arg) => {
+                // If the argument is a string, extract its content
+                if ((arg.startsWith('"') && arg.endsWith('"')) || (arg.startsWith("'") && arg.endsWith("'"))) {
+                    return arg.slice(1, -1);
+                }
+                return match;
+            });
+            
+            return result;
         }
         
-        function generateExecutionTrace(code) {
-            // Simple execution trace simulation
-            const lines = code.split('\n');
-            let trace = "";
+        function removeGarbageCode(code) {
+            let result = code;
+            
+            // Remove obvious garbage code
+            const garbagePatterns = [
+                /--\[\[.*?\]\]/gs,  // Multi-line comments
+                /--[^\n]*/g,        // Single-line comments
+                /if\s+false\s+then[^}]*end/g,  // Dead if blocks
+                /while\s+false\s+do[^}]*end/g, // Dead while loops
+                /function[^{]*{}[^}]*end/g,     // Empty functions
+            ];
+            
+            garbagePatterns.forEach(pattern => {
+                result = result.replace(pattern, '');
+            });
+            
+            return result;
+        }
+        
+        function fixSyntax(code) {
+            let result = code;
+            
+            // Fix common syntax issues
+            result = result.replace(/\\n/g, '\n');
+            result = result.replace(/\\t/g, '\t');
+            result = result.replace(/\\r/g, '\r');
+            result = result.replace(/\\"/g, '"');
+            result = result.replace(/\\'/g, "'");
+            
+            // Ensure proper line endings
+            result = result.replace(/\r\n/g, '\n');
+            
+            return result;
+        }
+        
+        function formatCode(code) {
+            // Basic code formatting for readability
+            let lines = code.split('\n');
+            let formatted = [];
             let indent = 0;
             
-            for (let i = 0; i < Math.min(lines.length, 30); i++) {
-                const line = lines[i].trim();
-                if (line.startsWith('end') || line.startsWith('}') || line.includes('end')) {
+            const indentKeywords = ['function', 'if', 'for', 'while', 'do', 'repeat'];
+            const outdentKeywords = ['end', 'until'];
+            
+            for (let line of lines) {
+                let trimmed = line.trim();
+                if (!trimmed) continue;
+                
+                // Check if we need to decrease indent
+                if (outdentKeywords.some(keyword => trimmed.startsWith(keyword))) {
                     indent = Math.max(0, indent - 1);
                 }
                 
-                trace += '  '.repeat(indent) + `Line ${i+1}: ${line.substring(0, 50)}${line.length > 50 ? '...' : ''}\n`;
+                // Add line with proper indentation
+                formatted.push('    '.repeat(indent) + trimmed);
                 
-                if (line.startsWith('function') || line.startsWith('if') || line.startsWith('for') || line.startsWith('while')) {
+                // Check if we need to increase indent
+                if (indentKeywords.some(keyword => trimmed.startsWith(keyword) && !trimmed.endsWith('end'))) {
                     indent++;
                 }
             }
             
-            return trace || "- Could not generate meaningful trace";
+            return formatted.join('\n');
         }
         
-        // Deobfuscator Functions (simplified from original)
-        function deobfuscateCode() {
-            const code = document.getElementById('deobfuscatorInput').value;
-            if (!code) {
-                document.getElementById('deobfuscatorOutput').textContent = 'No code to deobfuscate.';
+        function copyOutput() {
+            const output = document.getElementById('output').textContent;
+            if (!output || output === 'The extracted source code will appear here...') {
+                alert('No extracted code to copy.');
                 return;
             }
             
-            document.getElementById('deobfuscatorStatus').textContent = 'Deobfuscating code...';
-            
-            setTimeout(() => {
-                // Apply various deobfuscation techniques based on selected options
-                let result = code;
-                
-                if (document.getElementById('stringChar').checked) {
-                    result = decodeCommonPatterns(result);
-                }
-                
-                if (document.getElementById('removeASCII').checked) {
-                    result = result.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
-                }
-                
-                if (document.getElementById('base64').checked) {
-                    result = extractBase64Strings(result);
-                }
-                
-                if (document.getElementById('strSplit').checked) {
-                    result = decodeStringConcatenation(result);
-                }
-                
-                document.getElementById('deobfuscatorOutput').textContent = result;
-                document.getElementById('deobfuscatorStatus').textContent = 'Deobfuscation completed';
-                document.getElementById('deobfuscatorStats').textContent = `Output: ${result.length} characters`;
-            }, 1000);
-        }
-        
-        // Analyzer Functions
-        function analyzeCode() {
-            const code = document.getElementById('analyzerInput').value;
-            if (!code) {
-                document.getElementById('analyzerOutput').textContent = 'No code to analyze.';
-                return;
-            }
-            
-            // Update basic stats
-            document.getElementById('codeLength').textContent = code.length;
-            document.getElementById('codeLines').textContent = code.split('\n').length;
-            
-            // Analyze code structure
-            let analysis = "=== CODE ANALYSIS ===\n\n";
-            
-            // Basic metrics
-            analysis += `Code Length: ${code.length} characters\n`;
-            analysis += `Lines: ${code.split('\n').length}\n`;
-            
-            // String analysis
-            const strings = extractStrings(code);
-            analysis += `String Literals: ${strings.length}\n`;
-            
-            // Function analysis
-            const functions = extractFunctions(code);
-            analysis += `Function Definitions: ${functions.length}\n`;
-            
-            // Complexity analysis
-            const complexity = estimateComplexity(code);
-            analysis += `Estimated Complexity: ${complexity}/10\n`;
-            
-            document.getElementById('analyzerOutput').textContent = analysis;
-            document.getElementById('obfuscationLevel').textContent = estimateObfuscationLevel(code);
-        }
-        
-        function identifyObfuscation() {
-            const code = document.getElementById('analyzerInput').value;
-            if (!code) {
-                document.getElementById('analyzerOutput').textContent = 'No code to analyze.';
-                return;
-            }
-            
-            let analysis = "=== OBFUSCATION ANALYSIS ===\n\n";
-            
-            // Check for various obfuscation techniques
-            const techniques = [];
-            
-            // String obfuscation
-            if (code.includes('string.char') || code.match(/"\s*\.\.\s*"/)) {
-                techniques.push("String Obfuscation");
-            }
-            
-            // Encoding
-            if (code.match(/[A-Za-z0-9+\/=]{20,}/) || code.includes('base64')) {
-                techniques.push("Base64 Encoding");
-            }
-            
-            // Encryption
-            if (code.includes('bit32.bxor') || code.includes('~') || code.includes('^')) {
-                techniques.push("XOR Encryption");
-            }
-            
-            // Control flow
-            if (code.includes('goto') || code.includes('::') || code.match(/if\s+true\s+then/)) {
-                techniques.push("Control Flow Obfuscation");
-            }
-            
-            // Anti-dump
-            if (code.match(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/)) {
-                techniques.push("Anti-Dump Techniques");
-            }
-            
-            if (techniques.length > 0) {
-                analysis += "Detected Techniques:\n";
-                techniques.forEach(tech => {
-                    analysis += `- ${tech}\n`;
-                });
-            } else {
-                analysis += "No obvious obfuscation techniques detected.\n";
-            }
-            
-            document.getElementById('analyzerOutput').textContent = analysis;
-            document.getElementById('detectedTechniques').textContent = techniques.join(', ') || "None";
-            document.getElementById('obfuscationLevel').textContent = estimateObfuscationLevel(code);
-        }
-        
-        function extractPatterns() {
-            const code = document.getElementById('analyzerInput').value;
-            if (!code) {
-                document.getElementById('analyzerOutput').textContent = 'No code to analyze.';
-                return;
-            }
-            
-            let analysis = "=== PATTERN EXTRACTION ===\n\n";
-            
-            // Extract various patterns
-            analysis += "Strings:\n";
-            const strings = extractStrings(code);
-            strings.slice(0, 10).forEach(str => {
-                analysis += `- "${str}"\n`;
-            });
-            
-            analysis += "\nFunction Calls:\n";
-            const calls = extractFunctionCalls(code);
-            analysis += calls;
-            
-            document.getElementById('analyzerOutput').textContent = analysis;
-        }
-        
-        // Helper functions for analysis
-        function estimateComplexity(code) {
-            // Simple complexity estimation
-            let score = 0;
-            
-            // Based on number of lines
-            const lines = code.split('\n').length;
-            if (lines > 100) score += 3;
-            else if (lines > 50) score += 2;
-            else if (lines > 20) score += 1;
-            
-            // Based on nested structures
-            const nesting = (code.match(/\b(function|if|for|while)\b/g) || []).length;
-            if (nesting > 20) score += 4;
-            else if (nesting > 10) score += 3;
-            else if (nesting > 5) score += 2;
-            else if (nesting > 0) score += 1;
-            
-            // Based on string operations
-            const stringOps = (code.match(/\b(string\.|\.\.|concat)\b/g) || []).length;
-            if (stringOps > 10) score += 2;
-            else if (stringOps > 5) score += 1;
-            
-            return Math.min(10, score);
-        }
-        
-        function estimateObfuscationLevel(code) {
-            let score = 0;
-            
-            // Check for suspicious patterns
-            if (code.match(/_0x[a-fA-F0-9]+/)) score += 3;
-            if (code.includes('string.char')) score += 2;
-            if (code.match(/["']\s*\.\.\s*["']/)) score += 2;
-            if (code.match(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/)) score += 4;
-            if (code.match(/[A-Za-z0-9+\/=]{20,}/)) score += 2;
-            
-            if (score >= 8) return "Very High";
-            if (score >= 5) return "High";
-            if (score >= 3) return "Medium";
-            if (score >= 1) return "Low";
-            return "None";
-        }
-        
-        // Utility functions
-        function copyOutput(outputId) {
-            const output = document.getElementById(outputId).textContent;
             navigator.clipboard.writeText(output).then(() => {
-                alert('Output copied to clipboard!');
+                alert('Extracted source code copied to clipboard!');
             }).catch(err => {
-                alert('Failed to copy output: ' + err);
+                alert('Failed to copy code: ' + err);
             });
         }
         
-        function clearDumper() {
-            document.getElementById('dumperInput').value = '';
-            document.getElementById('dumperOutput').textContent = 'Extracted source will appear here...';
-            document.getElementById('stringsDump').textContent = 'No strings extracted yet';
-            document.getElementById('functionsDump').textContent = 'No functions extracted yet';
-            document.getElementById('constantsDump').textContent = 'No constants extracted yet';
-            document.getElementById('dumperStatus').textContent = 'Ready to dump environment...';
-            document.getElementById('dumperStats').textContent = 'No data extracted';
+        function clearAll() {
+            document.getElementById('inputCode').value = '';
+            document.getElementById('output').textContent = 'The extracted source code will appear here...';
+            document.getElementById('status').textContent = 'Ready to extract source code';
+            document.getElementById('stats').textContent = 'No code processed';
         }
         
-        function clearDeobfuscator() {
-            document.getElementById('deobfuscatorInput').value = '';
-            document.getElementById('deobfuscatorOutput').textContent = 'Deobfuscated code will appear here...';
-            document.getElementById('deobfuscatorStatus').textContent = 'Ready to deobfuscate...';
-            document.getElementById('deobfuscatorStats').textContent = 'No code processed';
-        }
+        // Example obfuscated code for testing
+        const exampleCode = `
+            local _G = _G
+            local string = string
+            local table = table
+            local math = math
+            
+            local function decode(str)
+                return string.gsub(str, ".", function(c)
+                    return string.char(string.byte(c) - 1)
+                end)
+            end
+            
+            local code = "dpoubujpo!gsff!xbufs(){!sfuvso!'GSFF!8".."BUFS!';!}"
+            local realCode = decode(code)
+            
+            loadstring(realCode)()
+        `;
         
-        function clearAnalyzer() {
-            document.getElementById('analyzerInput').value = '';
-            document.getElementById('analyzerOutput').textContent = 'Analysis results will appear here...';
-            document.getElementById('codeLength').textContent = '0';
-            document.getElementById('codeLines').textContent = '0';
-            document.getElementById('obfuscationLevel').textContent = 'Unknown';
-            document.getElementById('detectedTechniques').textContent = 'None';
-        }
+        // Uncomment the line below to preload the example
+        // document.getElementById('inputCode').value = exampleCode;
     </script>
 </body>
 </html>
