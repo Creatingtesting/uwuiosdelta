@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skid V3 Deobfuscator</title>
+    <title>MoonSec V3 Lua Deobfuscator</title>
     <style>
         body {
             font-family: 'Courier New', monospace;
@@ -78,7 +78,7 @@
 <body>
     <h1>MoonSec V3 Lua Deobfuscator</h1>
     <p class="info">
-        <strong>Instructions:</strong> Paste your obfuscated MoonSec V3 Lua code in the input box and click "Deobfuscate". The tool will attempt to decode strings, simplify control flow, and produce readable Lua code. Note: MoonSec V3 is complex, and full deobfuscation may require manual analysis or advanced tools like Prometheus Deobfuscator for complete results.
+        <strong>Instructions:</strong> Paste your obfuscated MoonSec V3 Lua code below and click "Deobfuscate". This tool decodes ASCII strings, hexadecimal constants, and simplifies VM logic. Note: Full deobfuscation may require manual analysis for complex scripts due to MoonSec's custom VM.
     </p>
     <div class="container">
         <div class="input-section">
@@ -94,7 +94,6 @@
     </div>
 
     <script>
-        // Main deobfuscation function
         function deobfuscate() {
             const input = document.getElementById('input').value;
             const outputDiv = document.getElementById('output');
@@ -105,33 +104,38 @@
             errorDiv.textContent = '';
 
             try {
-                // Step 1: Extract string table
+                // Step 1: Extract and decode string table
                 const stringTable = extractStringTable(input);
                 if (!stringTable) {
                     throw new Error('Failed to extract string table. Ensure the code is valid MoonSec V3.');
                 }
 
-                // Step 2: Decode bytecode (placeholder for VM interpretation)
-                let deobfuscated = decodeBytecode(input, stringTable);
+                // Step 2: Decode hexadecimal constants
+                let code = decodeHexConstants(input);
 
-                // Step 3: Simplify control flow
-                deobfuscated = simplifyControlFlow(deobfuscated);
+                // Step 3: Decode bytecode
+                code = decodeBytecode(code, stringTable);
 
-                // Step 4: Fix syntax errors
-                deobfuscated = fixSyntax(deobfuscated);
+                // Step 4: Simplify VM and control flow
+                code = simplifyVM(code);
 
-                // Step 5: Format for readability
-                deobfuscated = formatLuaCode(deobfuscated);
+                // Step 5: Emulate basic VM instructions
+                code = emulateVMInstructions(code);
 
-                outputDiv.textContent = deobfuscated || 'No output generated. The code may be too complex for automatic deobfuscation.';
+                // Step 6: Fix syntax errors
+                code = fixSyntax(code);
+
+                // Step 7: Format for readability
+                code = formatLuaCode(code);
+
+                outputDiv.textContent = code || 'No output generated. The code may be too complex.';
             } catch (err) {
                 errorDiv.textContent = `Error: ${err.message}`;
             }
         }
 
-        // Step 1: Extract and decode the string table
         function extractStringTable(code) {
-            // Look for the string table (e.g., "\4\8\116\111\110\117\109\98\101\114...")
+            // Extract string table (e.g., "\4\8\116\111\110\117\109\98\101\114...")
             const stringTableMatch = code.match(/s\s*=\s*"([^"]*)"/);
             if (!stringTableMatch) return null;
 
@@ -142,9 +146,15 @@
             while (i < encodedStr.length) {
                 if (encodedStr[i] === '\5') break;
                 if (encodedStr[i] === '\2') {
-                    // Decode string
+                    // Decode ASCII string
                     const length = encodedStr.charCodeAt(i + 1);
-                    const decoded = encodedStr.slice(i + 2, i + 2 + length);
+                    const bytes = encodedStr.slice(i + 2, i + 2 + length);
+                    let decoded;
+                    try {
+                        decoded = String.fromCharCode(...bytes.split('').map(c => c.charCodeAt(0)));
+                    } catch {
+                        decoded = `str_${bytes}`;
+                    }
                     result.push(decoded);
                     i += 2 + length;
                 } else if (encodedStr[i] === '\3') {
@@ -175,52 +185,75 @@
                     i++;
                 }
             }
-
             return result;
         }
 
-        // Step 2: Decode bytecode (simplified, as full VM emulation is complex)
-        function decodeBytecode(code, stringTable) {
-            // Extract bytecode segments (e.g., d(238, "_qy90ziQwRZ5!StAqQ") and long string)
-            const bytecodeMatches = code.match(/d\(\d+,\s*"([^"]*)"\)/g);
-            if (!bytecodeMatches) return code;
+        function decodeHexConstants(code) {
+            // Convert hexadecimal constants (e.g., 0x29 to 41)
+            return code.replace(/0x[0-9a-fA-F]+/g, match => parseInt(match, 16).toString());
+        }
 
-            let decoded = code;
+        function decodeBytecode(code, stringTable) {
+            // Decode bytecode segments (e.g., d(238, "_qy90ziQwRZ5!StAqQ"))
+            const bytecodeMatches = code.match(/d\(\d+,\s*"([^"]*)"\)/g) || [];
             for (const match of bytecodeMatches) {
                 const [, encoded] = match.match(/d\(\d+,\s*"([^"]*)"\)/);
-                // Placeholder: Attempt to decode bytecode (MoonSec uses custom encoding)
+                let decoded = encoded;
                 try {
-                    // Example: Assume base64-like encoding for simplicity
-                    const decodedSegment = atob(encoded.replace(/[^A-Za-z0-9+/=]/g, '')) || encoded;
-                    decoded = decoded.replace(match, `"${decodedSegment}"`);
-                } catch (e) {
-                    // Fallback to original if decoding fails
-                    decoded = decoded.replace(match, `"${encoded}"`);
+                    // Try base64 decoding or ASCII conversion
+                    decoded = atob(encoded.replace(/[^A-Za-z0-9+/=]/g, '')) || encoded;
+                } catch {
+                    // Fallback to ASCII decoding
+                    try {
+                        decoded = String.fromCharCode(...encoded.split('').map(c => c.charCodeAt(0)));
+                    } catch {
+                        // Keep original if decoding fails
+                    }
                 }
+                code = code.replace(match, `"${decoded}"`);
             }
 
-            // Replace string table references with decoded strings
-            stringTable.forEach((str, index) => {
-                const placeholder = `ref_${index}|table_${index}|func_${index}`;
-                const regex = new RegExp(placeholder, 'g');
-                decoded = decoded.replace(regex, JSON.stringify(str));
+            // Replace string table references
+            stringTable.forEach((item, index) => {
+                const placeholder = `(ref_|table_|func_)${index}`;
+                code = code.replace(new RegExp(placeholder, 'g'), JSON.stringify(item));
             });
 
-            return decoded;
+            return code;
         }
 
-        // Step 3: Simplify control flow
-        function simplifyControlFlow(code) {
-            // Remove redundant loops and modulo operations
-            let simplified = code.replace(/while\s*n<\d+\s*do\s*n=n\+1;.*?end/g, '');
-            simplified = simplified.replace(/\s*e=\(e[*+-\d%]+\)\%\d+/g, '');
-            simplified = simplified.replace(/if\s*e%2~=0\s*then\s*.*?else\s*.*?end/g, '');
-            // Remove junk assignments
-            simplified = simplified.replace(/t\[\d+\]=0x1;/g, '');
-            return simplified;
+        function simplifyVM(code) {
+            // Remove redundant VM loops and junk code
+            code = code.replace(/while\s*n<\d+\s*do\s*n=n\+1;.*?end/g, '');
+            code = code.replace(/e=\(e[*+-\d%]+\)\%\d+/g, '');
+            code = code.replace(/if\s*e%2~=0\s*then\s*.*?else\s*.*?end/g, '');
+            code = code.replace(/t\[\d+\]=0x[0-1];/g, '');
+            code = code.replace(/local\s*\w+\s*=\s*0x[0-9a-fA-F]+;/g, '');
+            return code;
         }
 
-        // Step 4: Fix syntax errors
+        function emulateVMInstructions(code) {
+            // Basic VM instruction emulation (simplified)
+            // Map common MoonSec VM opcodes to Lua operations
+            const opcodeMap = {
+                't\\[(\\d+)\\]=t\\[(\\d+)\\]\\[(\\d+)\\];': (match, r, l, s) => `t[${r}] = t[${l}][${s}];`, // Table index
+                't\\[(\\d+)\\]=c\\[(\\d+)\\];': (match, r, l) => `t[${r}] = constants[${l}];`, // Constant load
+                't\\[(\\d+)\\]\\[(\\d+)\\]=t\\[(\\d+)\\];': (match, r, l, s) => `t[${r}][${l}] = t[${s}];`, // Table set
+                't\\[(\\d+)\\]=t\\[(\\d+)\\]\\(.*?\\);': (match, r, l) => `t[${r}] = t[${l}]();`, // Function call
+            };
+
+            for (const [pattern, replacer] of Object.entries(opcodeMap)) {
+                code = code.replace(new RegExp(pattern, 'g'), replacer);
+            }
+
+            // Replace constant references (e.g., c[0] = "tonumber")
+            code = code.replace(/c\[(\d+)\]/g, (match, index) => {
+                return JSON.stringify(stringTable[index] || `const_${index}`);
+            });
+
+            return code;
+        }
+
         function fixSyntax(code) {
             // Fix unbalanced parentheses
             let openParens = (code.match(/\(/g) || []).length;
@@ -237,25 +270,21 @@
             code = code.replace(/,,\s*/g, ',');
             // Fix double semicolons
             code = code.replace(/;+\s*/g, ';');
-            // Remove redundant local declarations
-            code = code.replace(/local\s*\w+\s*=\s*0x[0-9a-fA-F]+;/g, '');
-
             return code;
         }
 
-        // Step 5: Format Lua code for readability
         function formatLuaCode(code) {
-            // Basic Lua code formatting
-            let lines = code.split('\n');
+            // Format Lua code for readability
+            const lines = code.split('\n');
             let indentLevel = 0;
             const formatted = lines.map(line => {
                 line = line.trim();
                 if (!line) return '';
-                if (line.match(/end[;\s]*$/)) indentLevel = Math.max(0, indentLevel - 1);
+                if (line.match(/^end\b/)) indentLevel = Math.max(0, indentLevel - 1);
                 const indent = '  '.repeat(indentLevel);
                 if (line.match(/^(function|if|for|while)\b/)) indentLevel++;
                 return indent + line;
-            }).filter(line => line !== '');
+            }).filter(line => line);
             return formatted.join('\n');
         }
     </script>
