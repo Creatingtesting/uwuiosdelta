@@ -191,12 +191,7 @@
                 let decoded = '';
                 for (let i = 0; i < str.length; i++) {
                     let charCode = str.charCodeAt(i);
-                    if (charCode > 127) {
-                        // Convert to equivalent raw byte (assuming Luau escape)
-                        decoded += String.fromCharCode(charCode & 0xFF);
-                    } else {
-                        decoded += str[i];
-                    }
+                    decoded += String.fromCharCode(charCode & 0xFF);
                 }
                 return decoded.replace(/\\(\d{1,3})/g, (match, num) => {
                     const charCode = parseInt(num, 10);
@@ -408,7 +403,6 @@
                 // Handle v7("str", "key")
                 temp = temp.replace(/v7\("([^"]*)",\s*"([^"]*)"\)/g, (match, str, key) => {
                     try {
-                        // Convert ASCII-encoded strings to raw bytes
                         const decodedStr = unescapeLuauString(str);
                         const decodedKey = unescapeLuauString(key);
                         const decoded = customXorDecode(decodedStr, decodedKey);
@@ -421,6 +415,8 @@
                     }
                 });
             } while (oldTemp !== temp);
+            // Remove v7 function definition after decoding
+            temp = temp.replace(/local\s+function\s+v7\s*\(v10,v11\)\s*local\s+v12\s*=\s*\{\};\s*for\s+v14=1,\s*#v10\s*do\s+v6\(v12,v0\(v4\(v1\(v2\(v10,v14,v14\s*\+\s*1\s*\)\),v1\(v2\(v11,1\s*\+\s*\(v14%\s*#v11\)\s*,1\s*\+\s*\(v14%\s*#v11\)\s*\+\s*1\s*\)\)\)%256\s*\)\);\s*end\s*return\s+v5\(v12\);\s*end/, '');
             return temp;
         }
 
@@ -429,28 +425,23 @@
             let oldTemp;
             do {
                 oldTemp = temp;
-                // Handle assignments with concatenation
                 temp = temp.replace(/local\s+(\w+)\s*=\s*([^;]*);/g, (match, varName, expr) => {
                     if (expr.includes('..')) {
                         const parts = expr.split('..').map(p => p.trim());
                         let resolvedParts = parts.map(p => {
-                            // Handle quoted strings
                             const strMatch = p.match(/^"([^"]*)"$|^'([^']*)'$/);
                             if (strMatch) {
                                 return strMatch[1] || strMatch[2];
                             }
-                            // Handle variables
                             const varMatch = temp.match(new RegExp(`local\\s+${p}\\s*=\\s*"([^"]*)"`));
                             if (varMatch) {
                                 return varMatch[1];
                             }
-                            // Handle common syntax errors (e.g., "\o" -> "o")
                             if (p === '"\\o"') {
                                 return 'o';
                             }
                             return p;
                         });
-                        // If all parts are strings, concatenate them
                         if (resolvedParts.every(p => typeof p === 'string')) {
                             const concatenated = resolvedParts.join('');
                             return `local ${varName} = "${concatenated}";`;
@@ -458,7 +449,6 @@
                     }
                     return match;
                 });
-                // Handle direct concatenations (e.g., var1 .. var2)
                 temp = temp.replace(/(\w+)\s*\.\.\s*(\w+)/g, (match, var1, var2) => {
                     const var1Match = temp.match(new RegExp(`local\\s+${var1}\\s*=\\s*"([^"]*)"`));
                     const var2Match = temp.match(new RegExp(`local\\s+${var2}\\s*=\\s*"([^"]*)"`));
@@ -467,7 +457,6 @@
                     }
                     return match;
                 });
-                // Handle literal string concatenations (e.g., "pr" .. "in")
                 temp = temp.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, (match, str1, str2) => {
                     return `"${str1 + str2}"`;
                 });
@@ -477,13 +466,18 @@
 
         function cleanUnusedVariables(code) {
             let lines = code.split('\n').map(line => line.trim()).filter(line => line);
-            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table']);
+            let usedVars = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait']);
             let varAssignments = new Map();
+            let functionDefs = new Set();
 
             for (let line of lines) {
                 const varMatch = line.match(/local\s+(\w+)\s*=/);
+                const funcMatch = line.match(/local\s+function\s+(\w+)\s*\(/);
                 if (varMatch) {
                     varAssignments.set(varMatch[1], line);
+                }
+                if (funcMatch) {
+                    functionDefs.add(funcMatch[1]);
                 }
                 const used = line.match(/\b(\w+)\b/g) || [];
                 used.forEach(v => usedVars.add(v));
@@ -491,7 +485,11 @@
 
             let newLines = lines.filter(line => {
                 const varMatch = line.match(/local\s+(\w+)\s*=/);
+                const funcMatch = line.match(/local\s+function\s+(\w+)\s*\(/);
                 if (varMatch && !usedVars.has(varMatch[1])) {
+                    return false;
+                }
+                if (funcMatch && !usedVars.has(funcMatch[1])) {
                     return false;
                 }
                 return true;
