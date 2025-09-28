@@ -116,7 +116,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="version">V1.33</div>
+        <div class="version">V1.35</div>
         <h1 class="glow">Luau Code Deobfuscator</h1>
         <textarea id="inputCode" placeholder="Paste your obfuscated Luau code here..."></textarea>
         <div class="toggles">
@@ -183,7 +183,7 @@
             let lines = code
                 .replace(/;/g, ';\n')
                 .replace(/(\)\s*\{)/g, '$1\n')
-                .replace(/function\s+(\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
+                .replace(/function\s+(_0x\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
                 .replace(/then\s+([^;\n]+)/g, 'then\n$1')
                 .replace(/end\s+([^;\n]+)/g, 'end\n$1')
                 .replace(/do\s+([^;\n]+)/g, 'do\n$1')
@@ -276,13 +276,17 @@
                         }
                     });
                     str = str.replace(/(\d+)\s*\^\s*(\d+)/g, (m, a, b) => Math.pow(Number(a), Number(b)));
+                    str = str.replace(/(\w+)\(\)/g, (match, funcName) => {
+                        const funcMatch = str.match(new RegExp(`function\\s+${funcName}\\s*\\(\\)\\s*return\\s+(\\d+);?\\s*end`));
+                        return funcMatch ? funcMatch[1] : match;
+                    });
                     return str;
                 };
                 let oldExpr;
                 do {
                     oldExpr = expr;
                     expr = safeEval(expr);
-                } while (expr !== oldExpr && expr.match(/[\(\)\+\-\*\/\^]/));
+                } while (expr !== oldExpr && expr.match(/[\(\)\+\-\*\/\^]|\w+\(\)/));
                 if (!isNaN(expr)) return Number(expr);
                 if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
                     return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
@@ -290,6 +294,10 @@
                 if (expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/)) {
                     const [_, a, b] = expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/);
                     return Number(a) ^ Number(b);
+                }
+                if (expr.match(/^\('([a-zA-Z])'\):byte\(\)$/)) {
+                    const char = expr.match(/^\('([a-zA-Z])'\):byte\(\)$/)[1];
+                    return char.charCodeAt(0);
                 }
                 return expr;
             } catch (e) {
@@ -299,19 +307,19 @@
 
         function decodeStringChar(code, aliases) {
             let temp = code;
-            const patterns = aliases.map(alias => new RegExp(`\\b${alias}\\((?:\\s*\\d+\\s*,?)+\\s*\\)`, 'g'));
-            patterns.push(/\bstring\.char\((?:\s*\d+\s*,?)+\s*\)/g);
+            const patterns = aliases.map(alias => new RegExp(`\\b${alias}\\((?:\\s*[^)]+\\s*,?)+\\s*\\)`, 'g'));
+            patterns.push(/\bstring\.char\((?:[^)]+\s*,?)+\s*\)/g);
             for (let pattern of patterns) {
                 let oldTemp;
                 do {
                     oldTemp = temp;
                     temp = temp.replace(pattern, (match) => {
-                        const nums = match.match(/\d+/g).map(n => parseInt(n));
-                        if (nums.some(n => n < 0 || n > 255)) {
-                            throw new Error("Invalid string.char numbers: must be 0-255");
+                        let nums = match.match(/[\d+\-\w\(\)\+\-\*\/]+/g).map(expr => evaluateNumberExpression(expr));
+                        if (nums.every(n => !isNaN(n) && n >= 0 && n <= 255)) {
+                            const decoded = nums.map(n => asciiTable[n] || String.fromCharCode(n)).join('');
+                            return `"${decoded}"`;
                         }
-                        const decoded = nums.map(n => asciiTable[n] || String.fromCharCode(n)).join('');
-                        return `"${decoded}"`;
+                        return match;
                     });
                 } while (oldTemp !== temp);
             }
@@ -336,7 +344,7 @@
                 temp = temp.replace(/local\s+(\w+)\s*=\s*\{([^\}]*)\}/g, (match, varName, values) => {
                     const nums = values.split(',').map(v => v.trim()).filter(v => v);
                     let resolvedValues = nums.map(v => {
-                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\^\\(\\)]+)`));
+                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\^\\(\\)\\w\\:]+)`));
                         if (varMatch) {
                             const evaluated = evaluateNumberExpression(varMatch[1]);
                             return isNaN(evaluated) ? v : evaluated;
@@ -550,78 +558,40 @@
         function renameVariables(code) {
             let temp = code;
             const varAssignments = new Map();
-            const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'game', 'hookfunction', 'wait', 'print', 'coroutine']);
+            const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'coroutine', 'print']);
             const serviceNames = {
                 'Players': 'Players',
                 'RunService': 'RunService',
                 'UserInputService': 'UserInputService',
-                'Workspace': 'Workspace',
-                'ReplicatedStorage': 'ReplicatedStorage',
-                'ServerScriptService': 'ServerScriptService',
-                'ServerStorage': 'ServerStorage',
-                'StarterGui': 'StarterGui',
-                'StarterPlayer': 'StarterPlayer',
-                'StarterPlayerScripts': 'StarterPlayerScripts',
-                'StarterCharacterScripts': 'StarterCharacterScripts',
-                'ReplicatedFirst': 'ReplicatedFirst',
-                'CoreGui': 'CoreGui',
-                'Lighting': 'Lighting',
-                'SoundService': 'SoundService',
-                'HttpService': 'HttpService',
-                'TeleportService': 'TeleportService',
-                'DataStoreService': 'DataStoreService',
-                'MarketplaceService': 'MarketplaceService',
-                'BadgeService': 'BadgeService',
-                'AssetService': 'AssetService',
-                'PhysicsService': 'PhysicsService',
-                'TestService': 'TestService',
-                'GuiService': 'GuiService',
-                'ContextActionService': 'ContextActionService',
-                'AnalyticsService': 'AnalyticsService',
-                'CollectionService': 'CollectionService',
-                'PathfindingService': 'PathfindingService',
-                'TweenService': 'TweenService',
-                'LocalizationService': 'LocalizationService',
-                'MessagingService': 'MessagingService',
-                'NetworkClient': 'NetworkClient',
-                'NetworkServer': 'NetworkServer',
-                'Teams': 'Teams',
-                'GroupService': 'GroupService',
-                'MaterialService': 'MaterialService',
-                'InsertService': 'InsertService',
-                'Selection': 'Selection',
-                'AnimationTrack': 'AnimationTrack',
-                'AdService': 'AdService',
-                'FriendService': 'FriendService',
-                'Debris': 'Debris',
-                'SocialService': 'SocialService',
-                'PolicyService': 'PolicyService',
-                'TextService': 'TextService',
-                'VoiceChatService': 'VoiceChatService',
-                'Chat': 'Chat',
-                'TextChatService': 'TextChatService',
-                'GamePassService': 'GamePassService',
-                'ProximityPromptService': 'ProximityPromptService',
-                'RunContext': 'RunContext',
-                'StudioService': 'StudioService',
-                'VirtualInputManager': 'VirtualInputManager',
-                'VirtualUser': 'VirtualUser',
-                'VideoCaptureService': 'VideoCaptureService',
-                'MemoryStoreService': 'MemoryStoreService',
-                'BrowserService': 'BrowserService',
-                'AvatarEditorService': 'AvatarEditorService',
-                'PathService': 'PathService'
+                'Workspace': 'Workspace'
             };
             const patternNames = {
+                'game:GetService\\("([^"]+)"\\)': (match, service) => serviceNames[service] || `Service${service}`,
                 'game.Players.LocalPlayer': 'LocalPlayer',
                 'workspace.CurrentCamera': 'Camera',
                 'true': 'isEnabled',
-                'false': 'isEnabled',
+                'false': 'isTracking',
                 'nil': 'target',
-                '\\d+\\.\\d+': 'interval',
+                '\\d+\\.\\d+': 'updateInterval',
                 '0': 'timer',
-                'function.*\\(.*\\)$': 'runFunction',
-                '"[^"]*"': 'message'
+                '"[^"]*"': 'greeting',
+                'function.*\\(.*\\)$': (match, code) => {
+                    if (code.includes('string.char')) return 'buildString';
+                    if (code.includes('print')) return 'printMessage';
+                    return 'runFunction';
+                },
+                '_0x[A-F0-9]+': (match, code) => {
+                    if (code.includes('string.char')) return 'buildString';
+                    if (code.includes('print')) return 'printMessage';
+                    return 'runFunction';
+                },
+                'timer\\d*': (match, code) => {
+                    if (code.includes(':byte()')) return 'charCode';
+                    if (code.includes('string.char')) return 'resultChar';
+                    if (code.includes('print')) return 'printFunc';
+                    return 'counter';
+                },
+                '_stash': 'tableRef'
             };
             const lines = temp.split('\n');
             for (let line of lines) {
@@ -635,15 +605,16 @@
             varAssignments.forEach((expr, varName) => {
                 if (usedNames.has(varName)) return;
                 let newName = varName;
-                const serviceMatch = expr.match(/game:GetService\("([^"]+)"\)/);
-                if (serviceMatch) {
-                    newName = serviceNames[serviceMatch[1]] || `Service${serviceMatch[1]}`;
-                } else {
-                    for (const [pattern, name] of Object.entries(patternNames)) {
-                        if (expr.match(new RegExp(pattern))) {
-                            newName = name;
+                for (const [pattern, name] of Object.entries(patternNames)) {
+                    if (typeof name === 'function') {
+                        const match = expr.match(new RegExp(pattern));
+                        if (match) {
+                            newName = name(match, expr);
                             break;
                         }
+                    } else if (expr.match(new RegExp(pattern))) {
+                        newName = name;
+                        break;
                     }
                 }
                 let baseName = newName;
@@ -667,14 +638,14 @@
             let oldTemp;
             do {
                 oldTemp = temp;
-                temp = temp.replace(/local\s+function\s+(\w+)\s*\(\)\s*return\s+([^;]*);?\s*end/g, (match, funcName, returnValue) => {
+                temp = temp.replace(/local\s+function\s+(_0x\w+)\s*\(\)\s*return\s+([^;]*);?\s*end/g, (match, funcName, returnValue) => {
                     const evaluated = evaluateNumberExpression(returnValue);
                     if (!isNaN(evaluated) || returnValue.match(/^"[^"]*"$/)) {
                         return `local ${funcName} = ${evaluated || returnValue}`;
                     }
                     return match;
                 });
-                temp = temp.replace(/\b(\w+)\(\)/g, (match, funcName) => {
+                temp = temp.replace(/\b(_0x\w+)\(\)/g, (match, funcName) => {
                     const varMatch = temp.match(new RegExp(`local\\s+${funcName}\\s*=\\s*([^;\n]*)`));
                     if (varMatch) {
                         return varMatch[1];
@@ -686,15 +657,13 @@
         }
 
         function normalizeCode(code) {
-            // Replace all whitespace/newlines with a single space to unify tokens
             let temp = code.replace(/\s+/g, ' ');
-            // Define keywords and identifiers to normalize (case-insensitive for robustness)
             const keywords = {
-                'l\\s*o\\s*c\\s*a\\s*l|lo\\s*ca\\s*l|loc\\s*al|lo\\s*cal': 'local',
+                'l\\s*o\\s*c\\s*a\\s*l|lo\\s*ca\\s*l|loc\\s*al|lo\\s*cal|local\\s*\\w+': 'local',
                 'f\\s*u\\s*n\\s*c\\s*t\\s*i\\s*o\\s*n|fu\\s*nc\\s*ti\\s*on|fun\\s*cti\\s*on': 'function',
                 'r\\s*e\\s*t\\s*u\\s*r\\s*n|re\\s*tu\\s*rn|ret\\s*urn': 'return',
                 't\\s*h\\s*e\\s*n|t\\s*he\\s*n|th\\s*en': 'then',
-                'e\\s*n\\s*d|en\\s*d': 'end',
+                'e\\s*n\\s*d|en\\s*d|enda': 'end',
                 's\\s*t\\s*r\\s*i\\s*n\\s*g\\s*\\.\\s*c\\s*h\\s*a\\s*r|st\\s*ri\\s*ng\\s*\\.\\s*ch\\s*ar': 'string.char',
                 'c\\s*o\\s*r\\s*o\\s*u\\s*t\\s*i\\s*n\\s*e\\s*\\.\\s*w\\s*r\\s*a\\s*p|co\\s*ro\\s*ut\\s*in\\s*e\\s*\\.\\s*wr\\s*ap': 'coroutine.wrap',
                 'b\\s*y\\s*t\\s*e|by\\s*te': 'byte',
@@ -702,25 +671,21 @@
                 't\\s*r\\s*u\\s*e|tr\\s*ue': 'true',
                 'p\\s*r\\s*o|pr\\s*o': 'pro'
             };
-            // Normalize keywords and identifiers
             for (const [pattern, replacement] of Object.entries(keywords)) {
                 const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
                 temp = temp.replace(regex, replacement);
             }
-            // Handle split strings (e.g., " pr o" -> "pro")
             temp = temp.replace(/"\s*([^"]*?)\s*"/g, (match, str) => {
                 const cleaned = str.replace(/\s+/g, '');
                 return `"${cleaned}"`;
             });
-            // Handle split identifiers not in keywords (e.g., custom variables)
             temp = temp.replace(/(\w)\s+(\w)\b/g, '$1$2');
-            // Ensure proper spacing around operators and punctuation
             temp = temp.replace(/(\w+)\s*([=+\-*/<>&|~^%])\s*(\w+)/g, '$1 $2 $3');
             temp = temp.replace(/(\w+)\s*([(),;])\s*(\w+)/g, '$1$2 $3');
-            // Add newlines only after complete statements
             temp = temp
                 .replace(/(\blocal\s+\w+\s*=\s*[^;]+)(?=\s*($|\blocal|\bif|\bfunction|\bfor|\bwhile|\bend|\belse))/g, '$1\n')
                 .replace(/(\bif\s+[^;]+then\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
+                .replace(/(\bfor\s+[^;]+do\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
                 .replace(/(\bend\b)/g, '$1\n')
                 .replace(/\n+/g, '\n')
                 .trim();
@@ -734,7 +699,6 @@
                     document.getElementById('output').textContent = 'No code to deobfuscate.';
                     return;
                 }
-                // Normalize code first to remove split keywords and identifiers
                 let temp = normalizeCode(code);
                 temp = removeComments(temp);
                 const stringChar = document.getElementById('stringChar').checked;
@@ -750,7 +714,6 @@
                 const minify = document.getElementById('minify').checked;
                 const simplify = document.getElementById('simplify').checked;
                 let outputType = 'Deobfuscate All';
-                // Additional normalization for specific patterns
                 temp = temp.replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2');
                 let stringCharAliases = ['string\\.char'];
                 let aliasMatches;
@@ -774,6 +737,7 @@
                         temp = temp.replace(/(\d+)\s*\^\s*(\d+)/g, evaluateNumberExpression);
                         temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
                         temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
+                        temp = temp.replace(/\('([a-zA-Z])'\):byte\(\)/g, evaluateNumberExpression);
                     } while (oldTemp !== temp);
                 }
                 if (stringChar || type === 'all') {
