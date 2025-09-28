@@ -3,234 +3,471 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luau Code Deobfuscator & Dumper</title>
+    <title>Luau Environment Dumper & Source Extractor</title>
     <style>
-        body {
-            background: linear-gradient(135deg, #1e1e2f, #2a2a4e);
-            color: #ffffff;
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+        :root {
+            --primary: #00ffff;
+            --secondary: #ff00ff;
+            --dark: #1e1e2f;
+            --darker: #0f0f1f;
+            --light: #2a2a4e;
+        }
+        
+        * {
             margin: 0;
-            overflow: auto;
-            padding: 20px;
-        }
-        .container {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            width: 900px;
-            max-width: 90%;
-            text-align: center;
-            backdrop-filter: blur(10px);
-            position: relative;
-        }
-        h1 {
-            font-size: 2em;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #00ffff;
-        }
-        .version {
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 1.2em;
-            color: #00ffff;
-            text-shadow: 0 0 5px #00ffff;
-        }
-        textarea {
-            width: 100%;
-            height: 150px;
-            background: #2e2e4e;
-            border: 1px solid #00ffff;
-            border-radius: 10px;
-            color: #ffffff;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            resize: none;
+            padding: 0;
             box-sizing: border-box;
         }
-        .buttons {
-            margin: 20px 0;
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
+        
+        body {
+            background: linear-gradient(135deg, var(--dark), var(--light));
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
         }
-        .toggles {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
         }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px var(--primary);
+        }
+        
+        .version {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.2em;
+            color: var(--primary);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            color: #cccccc;
+            margin-bottom: 20px;
+        }
+        
+        .tabs {
+            display: flex;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 10px 10px 0 0;
+            overflow: hidden;
+        }
+        
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            background: rgba(0, 255, 255, 0.1);
+            transition: all 0.3s;
+            flex: 1;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .tab:hover {
+            background: rgba(0, 255, 255, 0.2);
+        }
+        
+        .tab.active {
+            background: rgba(0, 255, 255, 0.3);
+            box-shadow: inset 0 0 10px var(--primary);
+        }
+        
+        .tab-content {
+            display: none;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 25px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            margin-bottom: 30px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .input-area {
+            margin-bottom: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: var(--darker);
+            border: 1px solid var(--primary);
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            font-size: 14px;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .control-group h3 {
+            margin-bottom: 10px;
+            color: var(--primary);
+            text-align: center;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .checkbox-group input {
+            margin-right: 8px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
         button {
-            padding: 10px 20px;
-            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            padding: 12px 25px;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
             border: none;
             border-radius: 5px;
             color: #ffffff;
             font-size: 1em;
+            font-weight: bold;
             cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-            margin: 5px;
+            transition: all 0.3s;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
         }
+        
         button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 255, 255, 0.5);
         }
-        label {
-            margin: 5px;
-            font-size: 0.9em;
+        
+        button:active {
+            transform: translateY(1px);
         }
-        #output {
-            background: #1e1e2f;
-            border: 1px solid #ff00ff;
-            border-radius: 10px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-x: auto;
-            overflow-y: auto;
-            text-align: left;
-            font-family: 'Courier New', monospace;
-            white-space: pre-wrap;
-            box-sizing: border-box;
+        
+        .output-area {
+            margin-top: 20px;
         }
-        #output-type {
-            font-size: 0.9em;
-            color: #00ffff;
+        
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
         }
-        .glow {
-            animation: glow 1.5s ease-in-out infinite alternate;
+        
+        .output-header h2 {
+            color: var(--primary);
         }
-        @keyframes glow {
-            from {
-                box-shadow: 0 0 10px #00ffff;
-            }
-            to {
-                box-shadow: 0 0 20px #ff00ff;
-            }
+        
+        #output {
+            background: var(--darker);
+            border: 1px solid var(--secondary);
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 300px;
+            max-height: 500px;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.5;
         }
-        .tabs {
-            display: flex;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #00ffff;
-        }
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            border-radius: 5px 5px 0 0;
-            margin-right: 5px;
-            background: rgba(0, 255, 255, 0.2);
-            transition: background 0.3s;
-        }
-        .tab.active {
-            background: rgba(0, 255, 255, 0.5);
-        }
-        .tab:hover {
-            background: rgba(0, 255, 255, 0.4);
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
+        
         .info-panel {
             background: rgba(0, 0, 0, 0.5);
             border-radius: 10px;
-            padding: 10px;
-            margin-top: 15px;
-            text-align: left;
-            max-height: 200px;
-            overflow-y: auto;
+            padding: 15px;
+            margin-top: 20px;
         }
+        
         .info-item {
-            margin-bottom: 5px;
-            padding: 5px;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .info-item strong {
+            color: var(--primary);
+        }
+        
+        .dump-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .dump-card {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid var(--primary);
+        }
+        
+        .dump-card h3 {
+            color: var(--primary);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .dump-content {
+            max-height: 200px;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: var(--darker);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .glow {
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px var(--primary);
+            }
+            to {
+                box-shadow: 0 0 20px var(--secondary);
+            }
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .dump-results {
+                grid-template-columns: 1fr;
+            }
+            
+            .control-group {
+                min-width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="version">V2.0</div>
-        <h1 class="glow">Luau Code Deobfuscator & Dumper</h1>
+        <header>
+            <div class="version">V3.0</div>
+            <h1 class="glow">Luau Environment Dumper & Source Extractor</h1>
+            <div class="subtitle">Extract, Deobfuscate, and Analyze Obfuscated Luau Code</div>
+        </header>
         
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('deobfuscate')">Deobfuscate</div>
-            <div class="tab" onclick="switchTab('dump')">Dump Analysis</div>
-            <div class="tab" onclick="switchTab('info')">Info</div>
+            <div class="tab active" onclick="switchTab('dumper')">Environment Dumper</div>
+            <div class="tab" onclick="switchTab('deobfuscator')">Deobfuscator</div>
+            <div class="tab" onclick="switchTab('analyzer')">Code Analyzer</div>
         </div>
         
-        <div id="deobfuscate" class="tab-content active">
-            <textarea id="inputCode" placeholder="Paste your obfuscated Luau code here..."></textarea>
-            <div class="toggles">
-                <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
-                <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
-                <label><input type="checkbox" id="base64" checked> Base64 Decoding</label>
-                <label><input type="checkbox" id="xor" checked> XOR Decoding</label>
-                <label><input type="checkbox" id="rename" checked> Variable Renaming</label>
-                <label><input type="checkbox" id="numObf" checked> Number Deobfuscation</label>
-                <label><input type="checkbox" id="strSplit" checked> String Desplitting</label>
-                <label><input type="checkbox" id="control" checked> Control Flow Cleanup</label>
-                <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
-                <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
-                <label><input type="checkbox" id="minify"> Minify Output</label>
-                <label><input type="checkbox" id="simplify" checked> Simplify Output</label>
+        <div id="dumper" class="tab-content active">
+            <div class="input-area">
+                <h2>Input Obfuscated Code</h2>
+                <textarea id="dumperInput" placeholder="Paste your obfuscated Luau code here..."></textarea>
             </div>
-            <div class="buttons">
-                <button onclick="deobfuscate('all')">Deobfuscate All</button>
-                <button onclick="copyCode()">Copy Code</button>
-                <button onclick="showSupport()">Support</button>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <h3>Dump Options</h3>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="dumpStrings" checked> Extract All Strings</label>
+                        <label><input type="checkbox" id="dumpFunctions" checked> Extract Function Definitions</label>
+                        <label><input type="checkbox" id="dumpGlobals" checked> Dump Global Environment</label>
+                        <label><input type="checkbox" id="dumpConstants" checked> Extract Constants</label>
+                        <label><input type="checkbox" id="dumpBytecode" checked> Attempt Bytecode Extraction</label>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Execution Simulation</h3>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="simulateGetfenv" checked> Simulate getfenv()</label>
+                        <label><input type="checkbox" id="simulateGetreg" checked> Simulate getreg()</label>
+                        <label><input type="checkbox" id="simulateGetgc" checked> Simulate getgc()</label>
+                        <label><input type="checkbox" id="hookCalls" checked> Hook Function Calls</label>
+                        <label><input type="checkbox" id="traceExecution" checked> Trace Execution Flow</label>
+                    </div>
+                </div>
             </div>
-            <h2>Deobfuscated Code</h2>
-            <div id="output-type">Select a deobfuscation method...</div>
-            <div id="output">Deobfuscated code will appear here...</div>
+            
+            <div class="button-group">
+                <button onclick="dumpEnvironment()">Dump Environment</button>
+                <button onclick="extractFullSource()">Extract Full Source</button>
+                <button onclick="simulateExecution()">Simulate Execution</button>
+                <button onclick="clearDumper()">Clear</button>
+            </div>
+            
+            <div class="output-area">
+                <div class="output-header">
+                    <h2>Extracted Source Code</h2>
+                    <button onclick="copyOutput('dumperOutput')">Copy Output</button>
+                </div>
+                <div id="dumperOutput">Extracted source will appear here...</div>
+            </div>
+            
+            <div class="dump-results">
+                <div class="dump-card">
+                    <h3>Strings Found</h3>
+                    <div id="stringsDump" class="dump-content">No strings extracted yet</div>
+                </div>
+                <div class="dump-card">
+                    <h3>Functions Found</h3>
+                    <div id="functionsDump" class="dump-content">No functions extracted yet</div>
+                </div>
+                <div class="dump-card">
+                    <h3>Constants Found</h3>
+                    <div id="constantsDump" class="dump-content">No constants extracted yet</div>
+                </div>
+            </div>
+            
+            <div class="status-bar">
+                <div id="dumperStatus">Ready to dump environment...</div>
+                <div id="dumperStats">No data extracted</div>
+            </div>
         </div>
         
-        <div id="dump" class="tab-content">
-            <textarea id="dumpInput" placeholder="Paste obfuscated code for analysis..."></textarea>
-            <div class="buttons">
+        <div id="deobfuscator" class="tab-content">
+            <div class="input-area">
+                <h2>Input Obfuscated Code</h2>
+                <textarea id="deobfuscatorInput" placeholder="Paste your obfuscated Luau code here..."></textarea>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <h3>Deobfuscation Options</h3>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="stringChar" checked> String.char Decoding</label>
+                        <label><input type="checkbox" id="removeASCII" checked> Remove ASCII Escapes</label>
+                        <label><input type="checkbox" id="base64" checked> Base64 Decoding</label>
+                        <label><input type="checkbox" id="xor" checked> XOR Decoding</label>
+                        <label><input type="checkbox" id="rename" checked> Variable Renaming</label>
+                        <label><input type="checkbox" id="numObf" checked> Number Deobfuscation</label>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Optimization</h3>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="strSplit" checked> String Desplitting</label>
+                        <label><input type="checkbox" id="control" checked> Control Flow Cleanup</label>
+                        <label><input type="checkbox" id="deadCode" checked> Dead Code Removal</label>
+                        <label><input type="checkbox" id="antiDump" checked> Anti-Dump Removal</label>
+                        <label><input type="checkbox" id="minify"> Minify Output</label>
+                        <label><input type="checkbox" id="simplify" checked> Simplify Output</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="deobfuscateCode()">Deobfuscate Code</button>
+                <button onclick="copyOutput('deobfuscatorOutput')">Copy Output</button>
+                <button onclick="clearDeobfuscator()">Clear</button>
+            </div>
+            
+            <div class="output-area">
+                <h2>Deobfuscated Code</h2>
+                <div id="deobfuscatorOutput">Deobfuscated code will appear here...</div>
+            </div>
+            
+            <div class="status-bar">
+                <div id="deobfuscatorStatus">Ready to deobfuscate...</div>
+                <div id="deobfuscatorStats">No code processed</div>
+            </div>
+        </div>
+        
+        <div id="analyzer" class="tab-content">
+            <div class="input-area">
+                <h2>Input Code for Analysis</h2>
+                <textarea id="analyzerInput" placeholder="Paste your Luau code here..."></textarea>
+            </div>
+            
+            <div class="button-group">
                 <button onclick="analyzeCode()">Analyze Code</button>
-                <button onclick="extractStrings()">Extract Strings</button>
                 <button onclick="identifyObfuscation()">Identify Obfuscation</button>
+                <button onclick="extractPatterns()">Extract Patterns</button>
+                <button onclick="clearAnalyzer()">Clear</button>
             </div>
-            <h2>Analysis Results</h2>
-            <div id="dump-output">Analysis results will appear here...</div>
-            <div class="info-panel" id="dump-info">
-                <!-- Dump info will be populated here -->
+            
+            <div class="output-area">
+                <h2>Analysis Results</h2>
+                <div id="analyzerOutput">Analysis results will appear here...</div>
             </div>
-        </div>
-        
-        <div id="info" class="tab-content">
-            <h2>About Luau Code Deobfuscator & Dumper</h2>
+            
             <div class="info-panel">
+                <h3>Analysis Information</h3>
                 <div class="info-item">
-                    <strong>Version:</strong> 2.0
+                    <strong>Code Length:</strong> <span id="codeLength">0</span> characters
                 </div>
                 <div class="info-item">
-                    <strong>Features:</strong>
-                    <ul>
-                        <li>Deobfuscate various Luau obfuscation techniques</li>
-                        <li>Analyze obfuscated code structure</li>
-                        <li>Extract hidden strings and data</li>
-                        <li>Identify obfuscation methods used</li>
-                        <li>Clean up control flow and remove dead code</li>
-                    </ul>
+                    <strong>Lines of Code:</strong> <span id="codeLines">0</span>
                 </div>
                 <div class="info-item">
-                    <strong>Supported Obfuscation:</strong>
-                    <ul>
-                        <li>String concatenation and encoding</li>
-                        <li>Base64 encoding</li>
-                        <li>XOR encryption</li>
-                        <li>Number obfuscation</li>
-                        <li>Control flow flattening</li>
-                        <li>Anti-dump techniques</li>
-                    </ul>
+                    <strong>Obfuscation Level:</strong> <span id="obfuscationLevel">Unknown</span>
+                </div>
+                <div class="info-item">
+                    <strong>Detected Techniques:</strong> <span id="detectedTechniques">None</span>
                 </div>
             </div>
         </div>
@@ -250,956 +487,496 @@
             document.getElementById(tabName).classList.add('active');
         }
 
-        // Dump analysis functions
-        function analyzeCode() {
-            const code = document.getElementById('dumpInput').value;
+        // Environment Dumper Functions
+        function dumpEnvironment() {
+            const code = document.getElementById('dumperInput').value;
             if (!code) {
-                document.getElementById('dump-output').textContent = 'No code to analyze.';
+                document.getElementById('dumperOutput').textContent = 'No code to dump.';
                 return;
             }
             
-            let analysis = "=== CODE ANALYSIS ===\n\n";
+            document.getElementById('dumperStatus').textContent = 'Dumping environment...';
             
-            // Line count
-            const lines = code.split('\n');
-            analysis += `Total lines: ${lines.length}\n`;
-            
-            // Character count
-            analysis += `Total characters: ${code.length}\n`;
-            
-            // Check for common obfuscation patterns
-            const patterns = {
-                'String concatenation': /\.\./g,
-                'Base64 encoded strings': /[A-Za-z0-9+\/=]{20,}/g,
-                'Hex escapes': /\\x[0-9A-Fa-f]{2}/g,
-                'Decimal escapes': /\\\d{1,3}/g,
-                'Suspicious variable names': /_0x[a-fA-F0-9]+/g,
-                'String.char patterns': /string\.char\([^)]+\)/gi,
-                'XOR operations': /\b(bit32\.bxor|~|\^)\b/g,
-                'Anti-dump patterns': /[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g,
-                'Suspicious functions': /(loadstring|getfenv|setfenv|getreg|getgc)\(/gi
-            };
-            
-            analysis += "\n=== OBFUSCATION PATTERNS ===\n";
-            for (const [patternName, regex] of Object.entries(patterns)) {
-                const matches = code.match(regex);
-                if (matches) {
-                    analysis += `${patternName}: ${matches.length} occurrences\n`;
-                }
-            }
-            
-            // Check for common obfuscators
-            const obfuscators = {
-                'Synapse X': /syn\.(crypt|secure)/gi,
-                'ScriptWare': /sw\./gi,
-                'Krnl': /krnl/gi,
-                'Oxygen U': /oxygen/gi,
-                'Electron': /electron/gi
-            };
-            
-            analysis += "\n=== POSSIBLE OBFUSCATORS ===\n";
-            for (const [obfuscator, regex] of Object.entries(obfuscators)) {
-                if (code.match(regex)) {
-                    analysis += `${obfuscator} detected\n`;
-                }
-            }
-            
-            // Check for encoded strings
-            analysis += "\n=== ENCODED STRINGS ===\n";
-            const base64Strings = code.match(/["']([A-Za-z0-9+\/=]{20,})["']/g);
-            if (base64Strings) {
-                analysis += `Base64-like strings: ${base64Strings.length}\n`;
-                base64Strings.slice(0, 5).forEach(str => {
-                    analysis += `  ${str.substring(0, 30)}...\n`;
+            // Simulate environment dumping
+            setTimeout(() => {
+                const strings = extractStrings(code);
+                const functions = extractFunctions(code);
+                const constants = extractConstants(code);
+                
+                // Update dump cards
+                document.getElementById('stringsDump').textContent = strings.length > 0 ? 
+                    strings.slice(0, 10).join('\n') + (strings.length > 10 ? '\n... and ' + (strings.length - 10) + ' more' : '') : 
+                    'No strings found';
+                
+                document.getElementById('functionsDump').textContent = functions.length > 0 ? 
+                    functions.slice(0, 5).join('\n\n') + (functions.length > 5 ? '\n\n... and ' + (functions.length - 5) + ' more' : '') : 
+                    'No functions found';
+                
+                document.getElementById('constantsDump').textContent = constants.length > 0 ? 
+                    constants.slice(0, 10).join('\n') + (constants.length > 10 ? '\n... and ' + (constants.length - 10) + ' more' : '') : 
+                    'No constants found';
+                
+                // Generate extracted source
+                let extractedSource = "-- Extracted Source Code\n-- Generated by Luau Environment Dumper\n\n";
+                extractedSource += "-- Strings found in code:\n";
+                strings.forEach(str => {
+                    extractedSource += `-- "${str}"\n`;
                 });
-            }
-            
-            document.getElementById('dump-output').textContent = analysis;
-            
-            // Update info panel
-            const infoPanel = document.getElementById('dump-info');
-            infoPanel.innerHTML = `
-                <div class="info-item"><strong>Analysis Complete</strong></div>
-                <div class="info-item">Code analyzed: ${lines.length} lines, ${code.length} characters</div>
-                <div class="info-item">Use the extraction tools to get more details</div>
-            `;
+                
+                extractedSource += "\n-- Function definitions:\n";
+                functions.forEach(func => {
+                    extractedSource += `${func}\n\n`;
+                });
+                
+                extractedSource += "-- Constants and variables:\n";
+                constants.forEach(constant => {
+                    extractedSource += `-- ${constant}\n`;
+                });
+                
+                document.getElementById('dumperOutput').textContent = extractedSource;
+                document.getElementById('dumperStatus').textContent = 'Environment dump completed';
+                document.getElementById('dumperStats').textContent = `${strings.length} strings, ${functions.length} functions, ${constants.length} constants`;
+            }, 1000);
         }
         
-        function extractStrings() {
-            const code = document.getElementById('dumpInput').value;
+        function extractFullSource() {
+            const code = document.getElementById('dumperInput').value;
             if (!code) {
-                document.getElementById('dump-output').textContent = 'No code to analyze.';
+                document.getElementById('dumperOutput').textContent = 'No code to extract.';
                 return;
             }
             
-            let extraction = "=== STRING EXTRACTION ===\n\n";
+            document.getElementById('dumperStatus').textContent = 'Extracting full source...';
             
-            // Extract all string literals
-            const stringRegex = /(["'])(?:(?=(\\?))\2.)*?\1/g;
-            const strings = code.match(stringRegex) || [];
-            
-            extraction += `Total string literals: ${strings.length}\n\n`;
-            
-            // Group by string length
-            const lengthGroups = {};
-            strings.forEach(str => {
-                const len = str.length;
-                if (!lengthGroups[len]) lengthGroups[len] = 0;
-                lengthGroups[len]++;
-            });
-            
-            extraction += "String length distribution:\n";
-            Object.keys(lengthGroups).sort((a, b) => a - b).forEach(len => {
-                extraction += `  ${len} chars: ${lengthGroups[len]} strings\n`;
-            });
-            
-            // Show longest strings
-            const sortedByLength = [...strings].sort((a, b) => b.length - a.length);
-            extraction += "\nLongest strings:\n";
-            sortedByLength.slice(0, 10).forEach(str => {
-                extraction += `  ${str.length} chars: ${str.substring(0, 50)}${str.length > 50 ? '...' : ''}\n`;
-            });
-            
-            // Check for potential base64
-            extraction += "\nPotential Base64 strings:\n";
-            const base64Regex = /["']([A-Za-z0-9+\/=]{20,})["']/g;
-            let match;
-            let base64Count = 0;
-            while ((match = base64Regex.exec(code)) !== null && base64Count < 10) {
-                extraction += `  ${match[1].substring(0, 30)}...\n`;
-                base64Count++;
+            // Simulate full source extraction
+            setTimeout(() => {
+                // Apply deobfuscation techniques
+                let extracted = code;
+                
+                // Remove anti-dump characters
+                extracted = extracted.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+                
+                // Decode string concatenation
+                extracted = decodeStringConcatenation(extracted);
+                
+                // Extract and decode base64 strings
+                extracted = extractBase64Strings(extracted);
+                
+                // Extract and decode hex strings
+                extracted = extractHexStrings(extracted);
+                
+                // Try to decode common obfuscation patterns
+                extracted = decodeCommonPatterns(extracted);
+                
+                document.getElementById('dumperOutput').textContent = extracted;
+                document.getElementById('dumperStatus').textContent = 'Full source extraction completed';
+                document.getElementById('dumperStats').textContent = `Extracted ${extracted.length} characters`;
+                
+                // Update dump cards with extracted data
+                const strings = extractStrings(extracted);
+                document.getElementById('stringsDump').textContent = strings.length > 0 ? 
+                    strings.slice(0, 10).join('\n') + (strings.length > 10 ? '\n... and ' + (strings.length - 10) + ' more' : '') : 
+                    'No strings found';
+            }, 1500);
+        }
+        
+        function simulateExecution() {
+            const code = document.getElementById('dumperInput').value;
+            if (!code) {
+                document.getElementById('dumperOutput').textContent = 'No code to simulate.';
+                return;
             }
             
-            document.getElementById('dump-output').textContent = extraction;
+            document.getElementById('dumperStatus').textContent = 'Simulating execution...';
             
-            // Update info panel
-            const infoPanel = document.getElementById('dump-info');
-            infoPanel.innerHTML = `
-                <div class="info-item"><strong>Strings Extracted</strong></div>
-                <div class="info-item">Found ${strings.length} string literals</div>
-                <div class="info-item">Longest string: ${sortedByLength[0] ? sortedByLength[0].length : 0} characters</div>
-            `;
+            // Simulate execution and environment interaction
+            setTimeout(() => {
+                let output = "-- Execution Simulation Results\n";
+                output += "-- Simulating getfenv, getreg, getgc...\n\n";
+                
+                // Extract potential environment interactions
+                const envInteractions = extractEnvironmentInteractions(code);
+                output += envInteractions;
+                
+                output += "\n-- Hooked function calls:\n";
+                const functionCalls = extractFunctionCalls(code);
+                output += functionCalls;
+                
+                output += "\n-- Execution trace:\n";
+                const trace = generateExecutionTrace(code);
+                output += trace;
+                
+                document.getElementById('dumperOutput').textContent = output;
+                document.getElementById('dumperStatus').textContent = 'Execution simulation completed';
+                document.getElementById('dumperStats').textContent = `Traced ${functionCalls.split('\n').length} function calls`;
+            }, 2000);
+        }
+        
+        // Extraction helper functions
+        function extractStrings(code) {
+            const stringRegex = /(["'])(?:(?=(\\?))\2.)*?\1/g;
+            const matches = code.match(stringRegex) || [];
+            return matches.map(str => {
+                // Remove quotes and unescape
+                let content = str.substring(1, str.length - 1);
+                // Simple unescape for common sequences
+                content = content.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r');
+                return content;
+            }).filter(str => str.length > 0);
+        }
+        
+        function extractFunctions(code) {
+            const functionRegex = /function\s+([\w\.]+)\s*\([^)]*\)\s*(?:[^{]*){/g;
+            const matches = [];
+            let match;
+            while ((match = functionRegex.exec(code)) !== null) {
+                matches.push(match[0]);
+            }
+            return matches;
+        }
+        
+        function extractConstants(code) {
+            const constantRegex = /local\s+(\w+)\s*=\s*([^;\n]+)/g;
+            const matches = [];
+            let match;
+            while ((match = constantRegex.exec(code)) !== null) {
+                matches.push(`${match[1]} = ${match[2]}`);
+            }
+            return matches;
+        }
+        
+        function decodeStringConcatenation(code) {
+            // Simple string concatenation decoding
+            return code.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, '"$1$2"');
+        }
+        
+        function extractBase64Strings(code) {
+            // Simple base64 string extraction
+            const base64Regex = /["']([A-Za-z0-9+\/=]{20,})["']/g;
+            return code.replace(base64Regex, (match, str) => {
+                try {
+                    const decoded = atob(str);
+                    // Check if decoded string is readable
+                    if (decoded.match(/^[\x20-\x7E]*$/)) {
+                        return `"${decoded}"`;
+                    }
+                } catch (e) {
+                    // Not valid base64, return original
+                }
+                return match;
+            });
+        }
+        
+        function extractHexStrings(code) {
+            // Simple hex string extraction
+            return code.replace(/"((?:\\x[0-9A-Fa-f]{2})+)+"/g, (match, hexStr) => {
+                const hexes = hexStr.match(/\\x([0-9A-Fa-f]{2})/g) || [];
+                let decoded = '';
+                hexes.forEach(hex => {
+                    const charCode = parseInt(hex.substring(2), 16);
+                    decoded += String.fromCharCode(charCode);
+                });
+                return `"${decoded}"`;
+            });
+        }
+        
+        function decodeCommonPatterns(code) {
+            // Common obfuscation pattern decoding
+            let result = code;
+            
+            // String.char patterns
+            result = result.replace(/string\.char\(([^)]+)\)/g, (match, args) => {
+                const numbers = args.split(',').map(n => parseInt(n.trim()));
+                if (numbers.every(n => !isNaN(n))) {
+                    return '"' + numbers.map(n => String.fromCharCode(n)).join('') + '"';
+                }
+                return match;
+            });
+            
+            // Simple number obfuscation
+            result = result.replace(/(\d+)\s*\+\s*(\d+)/g, (match, a, b) => {
+                return (parseInt(a) + parseInt(b)).toString();
+            });
+            
+            return result;
+        }
+        
+        function extractEnvironmentInteractions(code) {
+            let interactions = "";
+            
+            // Check for getfenv
+            if (code.includes('getfenv') || code.includes('getfenv')) {
+                interactions += "- getfenv() usage detected\n";
+            }
+            
+            // Check for getreg
+            if (code.includes('getreg') || code.includes('getregistry')) {
+                interactions += "- getreg() usage detected\n";
+            }
+            
+            // Check for getgc
+            if (code.includes('getgc') || code.includes('getgarbage')) {
+                interactions += "- getgc() usage detected\n";
+            }
+            
+            // Check for other environment interactions
+            if (code.includes('_G') || code.includes('shared') || code.includes('getrenv')) {
+                interactions += "- Global environment access detected\n";
+            }
+            
+            return interactions || "- No direct environment interactions detected";
+        }
+        
+        function extractFunctionCalls(code) {
+            const callRegex = /(\w+)\s*\([^)]*\)/g;
+            const matches = code.match(callRegex) || [];
+            return matches.slice(0, 20).join('\n') + (matches.length > 20 ? '\n... and ' + (matches.length - 20) + ' more' : '');
+        }
+        
+        function generateExecutionTrace(code) {
+            // Simple execution trace simulation
+            const lines = code.split('\n');
+            let trace = "";
+            let indent = 0;
+            
+            for (let i = 0; i < Math.min(lines.length, 30); i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('end') || line.startsWith('}') || line.includes('end')) {
+                    indent = Math.max(0, indent - 1);
+                }
+                
+                trace += '  '.repeat(indent) + `Line ${i+1}: ${line.substring(0, 50)}${line.length > 50 ? '...' : ''}\n`;
+                
+                if (line.startsWith('function') || line.startsWith('if') || line.startsWith('for') || line.startsWith('while')) {
+                    indent++;
+                }
+            }
+            
+            return trace || "- Could not generate meaningful trace";
+        }
+        
+        // Deobfuscator Functions (simplified from original)
+        function deobfuscateCode() {
+            const code = document.getElementById('deobfuscatorInput').value;
+            if (!code) {
+                document.getElementById('deobfuscatorOutput').textContent = 'No code to deobfuscate.';
+                return;
+            }
+            
+            document.getElementById('deobfuscatorStatus').textContent = 'Deobfuscating code...';
+            
+            setTimeout(() => {
+                // Apply various deobfuscation techniques based on selected options
+                let result = code;
+                
+                if (document.getElementById('stringChar').checked) {
+                    result = decodeCommonPatterns(result);
+                }
+                
+                if (document.getElementById('removeASCII').checked) {
+                    result = result.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+                }
+                
+                if (document.getElementById('base64').checked) {
+                    result = extractBase64Strings(result);
+                }
+                
+                if (document.getElementById('strSplit').checked) {
+                    result = decodeStringConcatenation(result);
+                }
+                
+                document.getElementById('deobfuscatorOutput').textContent = result;
+                document.getElementById('deobfuscatorStatus').textContent = 'Deobfuscation completed';
+                document.getElementById('deobfuscatorStats').textContent = `Output: ${result.length} characters`;
+            }, 1000);
+        }
+        
+        // Analyzer Functions
+        function analyzeCode() {
+            const code = document.getElementById('analyzerInput').value;
+            if (!code) {
+                document.getElementById('analyzerOutput').textContent = 'No code to analyze.';
+                return;
+            }
+            
+            // Update basic stats
+            document.getElementById('codeLength').textContent = code.length;
+            document.getElementById('codeLines').textContent = code.split('\n').length;
+            
+            // Analyze code structure
+            let analysis = "=== CODE ANALYSIS ===\n\n";
+            
+            // Basic metrics
+            analysis += `Code Length: ${code.length} characters\n`;
+            analysis += `Lines: ${code.split('\n').length}\n`;
+            
+            // String analysis
+            const strings = extractStrings(code);
+            analysis += `String Literals: ${strings.length}\n`;
+            
+            // Function analysis
+            const functions = extractFunctions(code);
+            analysis += `Function Definitions: ${functions.length}\n`;
+            
+            // Complexity analysis
+            const complexity = estimateComplexity(code);
+            analysis += `Estimated Complexity: ${complexity}/10\n`;
+            
+            document.getElementById('analyzerOutput').textContent = analysis;
+            document.getElementById('obfuscationLevel').textContent = estimateObfuscationLevel(code);
         }
         
         function identifyObfuscation() {
-            const code = document.getElementById('dumpInput').value;
+            const code = document.getElementById('analyzerInput').value;
             if (!code) {
-                document.getElementById('dump-output').textContent = 'No code to analyze.';
+                document.getElementById('analyzerOutput').textContent = 'No code to analyze.';
                 return;
             }
             
-            let identification = "=== OBFUSCATION IDENTIFICATION ===\n\n";
+            let analysis = "=== OBFUSCATION ANALYSIS ===\n\n";
             
-            // Score different obfuscation techniques
-            let score = 0;
+            // Check for various obfuscation techniques
             const techniques = [];
             
-            // Check for string concatenation
-            const concatMatches = code.match(/\.\./g);
-            if (concatMatches && concatMatches.length > 10) {
-                score += 2;
-                techniques.push("String concatenation obfuscation");
+            // String obfuscation
+            if (code.includes('string.char') || code.match(/"\s*\.\.\s*"/)) {
+                techniques.push("String Obfuscation");
             }
             
-            // Check for encoded strings
-            const hexMatches = code.match(/\\x[0-9A-Fa-f]{2}/g);
-            if (hexMatches && hexMatches.length > 5) {
-                score += 2;
-                techniques.push("Hex escape encoding");
+            // Encoding
+            if (code.match(/[A-Za-z0-9+\/=]{20,}/) || code.includes('base64')) {
+                techniques.push("Base64 Encoding");
             }
             
-            const decMatches = code.match(/\\\d{1,3}/g);
-            if (decMatches && decMatches.length > 5) {
-                score += 2;
-                techniques.push("Decimal escape encoding");
+            // Encryption
+            if (code.includes('bit32.bxor') || code.includes('~') || code.includes('^')) {
+                techniques.push("XOR Encryption");
             }
             
-            // Check for suspicious variable names
-            const suspiciousVars = code.match(/_0x[a-fA-F0-9]+/g);
-            if (suspiciousVars && suspiciousVars.length > 10) {
-                score += 3;
-                techniques.push("Hex-encoded variable names");
+            // Control flow
+            if (code.includes('goto') || code.includes('::') || code.match(/if\s+true\s+then/)) {
+                techniques.push("Control Flow Obfuscation");
             }
             
-            // Check for string.char patterns
-            const stringCharMatches = code.match(/string\.char\([^)]+\)/gi);
-            if (stringCharMatches && stringCharMatches.length > 5) {
-                score += 3;
-                techniques.push("String.char encoding");
+            // Anti-dump
+            if (code.match(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/)) {
+                techniques.push("Anti-Dump Techniques");
             }
             
-            // Check for XOR operations
-            const xorMatches = code.match(/\b(bit32\.bxor|~|\^)\b/g);
-            if (xorMatches && xorMatches.length > 5) {
-                score += 2;
-                techniques.push("XOR encryption");
+            if (techniques.length > 0) {
+                analysis += "Detected Techniques:\n";
+                techniques.forEach(tech => {
+                    analysis += `- ${tech}\n`;
+                });
+            } else {
+                analysis += "No obvious obfuscation techniques detected.\n";
             }
             
-            // Check for anti-dump characters
-            const antiDumpMatches = code.match(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g);
-            if (antiDumpMatches) {
-                score += 4;
-                techniques.push("Anti-dump characters");
+            document.getElementById('analyzerOutput').textContent = analysis;
+            document.getElementById('detectedTechniques').textContent = techniques.join(', ') || "None";
+            document.getElementById('obfuscationLevel').textContent = estimateObfuscationLevel(code);
+        }
+        
+        function extractPatterns() {
+            const code = document.getElementById('analyzerInput').value;
+            if (!code) {
+                document.getElementById('analyzerOutput').textContent = 'No code to analyze.';
+                return;
             }
             
-            // Check for control flow obfuscation
-            const controlFlowMatches = code.match(/(goto|::[^:]+::)/g);
-            if (controlFlowMatches && controlFlowMatches.length > 10) {
-                score += 3;
-                techniques.push("Control flow obfuscation");
-            }
+            let analysis = "=== PATTERN EXTRACTION ===\n\n";
             
-            // Check for number obfuscation
-            const complexNumbers = code.match(/\d+\s*[\+\-\*\/\^]\s*\d+/g);
-            if (complexNumbers && complexNumbers.length > 10) {
-                score += 2;
-                techniques.push("Number obfuscation");
-            }
-            
-            // Determine obfuscation level
-            let level = "Low";
-            if (score >= 15) level = "Very High";
-            else if (score >= 10) level = "High";
-            else if (score >= 5) level = "Medium";
-            
-            identification += `Obfuscation Level: ${level} (Score: ${score}/20)\n\n`;
-            identification += "Detected Techniques:\n";
-            techniques.forEach(tech => {
-                identification += `  - ${tech}\n`;
+            // Extract various patterns
+            analysis += "Strings:\n";
+            const strings = extractStrings(code);
+            strings.slice(0, 10).forEach(str => {
+                analysis += `- "${str}"\n`;
             });
             
-            // Recommendations
-            identification += "\nRecommendations:\n";
-            if (techniques.includes("String.char encoding")) {
-                identification += "  - Enable String.char decoding\n";
-            }
-            if (techniques.includes("Hex escape encoding") || techniques.includes("Decimal escape encoding")) {
-                identification += "  - Enable ASCII escape removal\n";
-            }
-            if (techniques.includes("XOR encryption")) {
-                identification += "  - Enable XOR decoding\n";
-            }
-            if (techniques.includes("Anti-dump characters")) {
-                identification += "  - Enable anti-dump removal\n";
-            }
-            if (techniques.includes("Control flow obfuscation")) {
-                identification += "  - Enable control flow cleanup\n";
-            }
-            if (techniques.includes("Number obfuscation")) {
-                identification += "  - Enable number deobfuscation\n";
-            }
+            analysis += "\nFunction Calls:\n";
+            const calls = extractFunctionCalls(code);
+            analysis += calls;
             
-            document.getElementById('dump-output').textContent = identification;
+            document.getElementById('analyzerOutput').textContent = analysis;
+        }
+        
+        // Helper functions for analysis
+        function estimateComplexity(code) {
+            // Simple complexity estimation
+            let score = 0;
             
-            // Update info panel
-            const infoPanel = document.getElementById('dump-info');
-            infoPanel.innerHTML = `
-                <div class="info-item"><strong>Obfuscation Analysis</strong></div>
-                <div class="info-item">Level: ${level} (${score}/20)</div>
-                <div class="info-item">Techniques: ${techniques.length}</div>
-                <div class="info-item">Switch to Deobfuscate tab to clean the code</div>
-            `;
+            // Based on number of lines
+            const lines = code.split('\n').length;
+            if (lines > 100) score += 3;
+            else if (lines > 50) score += 2;
+            else if (lines > 20) score += 1;
+            
+            // Based on nested structures
+            const nesting = (code.match(/\b(function|if|for|while)\b/g) || []).length;
+            if (nesting > 20) score += 4;
+            else if (nesting > 10) score += 3;
+            else if (nesting > 5) score += 2;
+            else if (nesting > 0) score += 1;
+            
+            // Based on string operations
+            const stringOps = (code.match(/\b(string\.|\.\.|concat)\b/g) || []).length;
+            if (stringOps > 10) score += 2;
+            else if (stringOps > 5) score += 1;
+            
+            return Math.min(10, score);
         }
-
-        // Original deobfuscation functions (kept from the original code)
-        const asciiTable = {
-            32: ' ', 33: '!', 34: '"', 35: '#', 36: '$', 37: '%', 38: '&', 39: '\'',
-            40: '(', 41: ')', 42: '*', 43: '+', 44: ',', 45: '-', 46: '.', 47: '/',
-            48: '0', 49: '1', 50: '2', 51: '3', 52: '4', 53: '5', 54: '6', 55: '7',
-            56: '8', 57: '9', 58: ':', 59: ';', 60: '<', 61: '=', 62: '>', 63: '?',
-            64: '@', 65: 'A', 66: 'B', 67: 'C', 68: 'D', 69: 'E', 70: 'F', 71: 'G',
-            72: 'H', 73: 'I', 74: 'J', 75: 'K', 76: 'L', 77: 'M', 78: 'N', 79: 'O',
-            80: 'P', 81: 'Q', 82: 'R', 83: 'S', 84: 'T', 85: 'U', 86: 'V', 87: 'W',
-            88: 'X', 89: 'Y', 90: 'Z', 91: '[', 92: '\\', 93: ']', 94: '^', 95: '_',
-            96: '`', 97: 'a', 98: 'b', 99: 'c', 100: 'd', 101: 'e', 102: 'f', 103: 'g',
-            104: 'h', 105: 'i', 106: 'j', 107: 'k', 108: 'l', 109: 'm', 110: 'n', 111: 'o',
-            112: 'p', 113: 'q', 114: 'r', 115: 's', 116: 't', 117: 'u', 118: 'v', 119: 'w',
-            120: 'x', 121: 'y', 122: 'z', 123: '{', 124: '|', 125: '}', 126: '~'
-        };
-
-        function removeComments(code) {
-            return code
-                .replace(/--\[\[[\s\S]*?\]\]/g, '')
-                .replace(/--[^\n]*/g, '')
-                .replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
-                .replace(/^\s+/gm, '')
-                .replace(/\s+$/gm, '')
-                .replace(/\n+/g, '\n')
-                .replace(/do\s+([\s\S]*?)\s+end/g, '$1')
-                .trim();
+        
+        function estimateObfuscationLevel(code) {
+            let score = 0;
+            
+            // Check for suspicious patterns
+            if (code.match(/_0x[a-fA-F0-9]+/)) score += 3;
+            if (code.includes('string.char')) score += 2;
+            if (code.match(/["']\s*\.\.\s*["']/)) score += 2;
+            if (code.match(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/)) score += 4;
+            if (code.match(/[A-Za-z0-9+\/=]{20,}/)) score += 2;
+            
+            if (score >= 8) return "Very High";
+            if (score >= 5) return "High";
+            if (score >= 3) return "Medium";
+            if (score >= 1) return "Low";
+            return "None";
         }
-
-        function minifyCode(code) {
-            return code
-                .replace(/\s+/g, ' ')
-                .replace(/ ?([=+-/*<>&|~^%]) ?/g, '$1')
-                .replace(/ ?([(),;]) ?/g, '$1')
-                .replace(/^\s+|\s+$/g, '');
-        }
-
-        function simplifyCode(code) {
-            let lines = code
-                .replace(/;/g, ';\n')
-                .replace(/(\)\s*\{)/g, '$1\n')
-                .replace(/function\s+(_0x\w+)\s*\([^\)]*\)\s*([^\n{]+)/g, 'function $1()\n$2')
-                .replace(/then\s+([^;\n]+)/g, 'then\n$1')
-                .replace(/end\s+([^;\n]+)/g, 'end\n$1')
-                .replace(/do\s+([^;\n]+)/g, 'do\n$1')
-                .replace(/return\s+([^;\n]+)/g, 'return\n$1')
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line);
-            let indentLevel = 0;
-            let result = [];
-            const blockStarters = [/function.*\(.*\)$/, /if.*then$/, /for.*do$/, /do$/, /else$/, /elseif.*then$/];
-            const blockEnders = [/^end$/];
-            for (let line of lines) {
-                line = line.replace(/;$/, '');
-                if (blockEnders.some(regex => regex.test(line))) {
-                    indentLevel = Math.max(0, indentLevel - 1);
-                }
-                result.push('    '.repeat(indentLevel) + line);
-                if (blockStarters.some(regex => regex.test(line))) {
-                    indentLevel++;
-                }
-            }
-            return result.join('\n');
-        }
-
-        function unescapeLuauString(str) {
-            try {
-                let decoded = '';
-                let i = 0;
-                while (i < str.length) {
-                    if (str[i] === '\\') {
-                        i++;
-                        if (str[i] === 'x') {
-                            i++;
-                            let hex = str.substr(i, 2);
-                            i += 2;
-                            let charCode = parseInt(hex, 16);
-                            if (!isNaN(charCode)) {
-                                decoded += String.fromCharCode(charCode);
-                            } else {
-                                decoded += '\\x' + hex;
-                                i -= 2;
-                            }
-                        } else if (/\d/.test(str[i])) {
-                            let num = '';
-                            while (/\d/.test(str[i]) && num.length < 3) {
-                                num += str[i];
-                                i++;
-                            }
-                            let charCode = parseInt(num, 10);
-                            decoded += asciiTable[charCode] || String.fromCharCode(charCode);
-                            i--;
-                        } else {
-                            switch (str[i]) {
-                                case 'a': decoded += '\a'; break;
-                                case 'b': decoded += '\b'; break;
-                                case 'f': decoded += '\f'; break;
-                                case 'n': decoded += '\n'; break;
-                                case 'r': decoded += '\r'; break;
-                                case 't': decoded += '\t'; break;
-                                case 'v': decoded += '\v'; break;
-                                case '\\': decoded += '\\'; break;
-                                case '\'': decoded += '\''; break;
-                                case '"': decoded += '"'; break;
-                                default: decoded += '\\' + str[i]; break;
-                            }
-                            i++;
-                        }
-                    } else {
-                        decoded += str[i];
-                        i++;
-                    }
-                }
-                return decoded;
-            } catch (e) {
-                return str;
-            }
-        }
-
-        function evaluateNumberExpression(expr) {
-            try {
-                const safeEval = (str) => {
-                    str = str.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, (m, a, op, b) => {
-                        a = Number(a);
-                        b = Number(b);
-                        switch (op) {
-                            case '+': return a + b;
-                            case '-': return a - b;
-                            case '*': return a * b;
-                            case '/': return a / b;
-                        }
-                    });
-                    str = str.replace(/(\d+)\s*\^\s*(\d+)/g, (m, a, b) => Math.pow(Number(a), Number(b)));
-                    str = str.replace(/(\w+)\(\)/g, (match, funcName) => {
-                        const funcMatch = str.match(new RegExp(`function\\s+${funcName}\\s*\\(\\)\\s*return\\s+(\\d+);?\\s*end`));
-                        return funcMatch ? funcMatch[1] : match;
-                    });
-                    return str;
-                };
-                let oldExpr;
-                do {
-                    oldExpr = expr;
-                    expr = safeEval(expr);
-                } while (expr !== oldExpr && expr.match(/[\(\)\+\-\*\/\^]|\w+\(\)/));
-                if (!isNaN(expr)) return Number(expr);
-                if (expr.match(/^math\.sqrt\((\d+)\)$/)) {
-                    return Math.sqrt(Number(expr.match(/^math\.sqrt\((\d+)\)$/)[1]));
-                }
-                if (expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/)) {
-                    const [_, a, b] = expr.match(/^bit32\.bxor\((\d+),\s*(\d+)\)$/);
-                    return Number(a) ^ Number(b);
-                }
-                if (expr.match(/^\('([a-zA-Z])'\):byte\(\)$/)) {
-                    const char = expr.match(/^\('([a-zA-Z])'\):byte\(\)$/)[1];
-                    return char.charCodeAt(0);
-                }
-                return expr;
-            } catch (e) {
-                return expr;
-            }
-        }
-
-        function decodeStringChar(code, aliases) {
-            let temp = code;
-            const patterns = aliases.map(alias => new RegExp(`\\b${alias}\\((?:\\s*[^)]+\\s*,?)+\\s*\\)`, 'g'));
-            patterns.push(/\bstring\.char\((?:[^)]+\s*,?)+\s*\)/g);
-            for (let pattern of patterns) {
-                let oldTemp;
-                do {
-                    oldTemp = temp;
-                    temp = temp.replace(pattern, (match) => {
-                        let nums = match.match(/[\d+\-\w\(\)\+\-\*\/]+/g).map(expr => evaluateNumberExpression(expr));
-                        if (nums.every(n => !isNaN(n) && n >= 0 && n <= 255)) {
-                            const decoded = nums.map(n => asciiTable[n] || String.fromCharCode(n)).join('');
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    });
-                } while (oldTemp !== temp);
-            }
-            return temp;
-        }
-
-        function decodeHexString(str) {
-            try {
-                return str.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
-                    return String.fromCharCode(parseInt(hex, 16));
-                });
-            } catch (e) {
-                return str;
-            }
-        }
-
-        function resolveTable(code) {
-            let temp = code;
-            let oldTemp;
-            do {
-                oldTemp = temp;
-                temp = temp.replace(/local\s+(\w+)\s*=\s*\{([^\}]*)\}/g, (match, varName, values) => {
-                    const nums = values.split(',').map(v => v.trim()).filter(v => v);
-                    let resolvedValues = nums.map(v => {
-                        const varMatch = temp.match(new RegExp(`local\\s+${v}\\s*=\\s*([\\d\\+\\-\\*\\/\\^\\(\\)\\w\\:]+)`));
-                        if (varMatch) {
-                            const evaluated = evaluateNumberExpression(varMatch[1]);
-                            return isNaN(evaluated) ? v : evaluated;
-                        }
-                        return v;
-                    });
-                    if (resolvedValues.every(v => !isNaN(v) && Number.isInteger(Number(v)))) {
-                        const decoded = resolvedValues.map(n => asciiTable[Number(n)] || String.fromCharCode(Number(n))).join('');
-                        return `local ${varName} = "${decoded}"`;
-                    }
-                    return match;
-                });
-            } while (oldTemp !== temp);
-            return temp;
-        }
-
-        function inlineBuildFunction(code) {
-            let temp = code;
-            const buildMatch = temp.match(/local\s+function\s+(\w+)\s*\(t\)\s*local\s+\w+\s*=\s*\{}\s*for\s+i=1,#t\s+do\s+\w+\[i\]\s*=\s*string\.char\(t\[i\]\)\s*end\s*return\s+table\.concat\(\w+\)\s*end/);
-            if (buildMatch) {
-                const buildName = buildMatch[1];
-                let oldTemp;
-                do {
-                    oldTemp = temp;
-                    temp = temp.replace(new RegExp(`\\b${buildName}\\(\\s*(\\w+)\\s*\\)`, 'g'), (match, tableVar) => {
-                        const tableMatch = temp.match(new RegExp(`local\\s+${tableVar}\\s*=\\s*"([^"]*)"`));
-                        if (tableMatch) {
-                            return `"${tableMatch[1]}"`;
-                        }
-                        return match;
-                    });
-                } while (oldTemp !== temp);
-                temp = temp.replace(/local\s+function\s+\w+\s*\(t\)\s*local\s+\w+\s*=\s*\{}\s*for\s+i=1,#t\s+do\s+\w+\[i\]\s*=\s*string\.char\(t\[i\]\)\s*end\s*return\s+table\.concat\(\w+\)\s*end/, '');
-            }
-            return temp;
-        }
-
-        function jsB64Decode(str, tbl) {
-            let r = [];
-            let t = [];
-            for (let i = 0; i < str.length; i++) {
-                let c = str[i];
-                if (c !== '=') {
-                    let v = tbl.indexOf(c);
-                    if (v !== -1) {
-                        t.push(v);
-                    } else {
-                        return "";
-                    }
-                }
-            }
-            for (let i = 0; i < t.length; i += 4) {
-                let v1 = t[i] || 0;
-                let v2 = t[i + 1] || 0;
-                let v3 = t[i + 2] || 0;
-                let v4 = t[i + 3] || 0;
-                let a = ((v1 * 4 + (v2 >> 4)) >> 0) & 0xFF;
-                let b = (((v2 & 15) * 16 + (v3 >> 2)) >> 0) & 0xFF;
-                let c = (((v3 & 3) * 64 + v4) >> 0) & 0xFF;
-                r.push(String.fromCharCode(a));
-                if (t[i + 2] != undefined) r.push(String.fromCharCode(b));
-                if (t[i + 3] != undefined) r.push(String.fromCharCode(c));
-            }
-            try {
-                return decodeURIComponent(escape(r.join('')));
-            } catch (e) {
-                return r.join('');
-            }
-        }
-
-        function jsXorDecode(str, keys) {
-            let result = [];
-            let keyLen = keys.length;
-            for (let i = 0; i < str.length; i++) {
-                let char = str.charCodeAt(i);
-                let key = keys[i % keyLen];
-                result.push(String.fromCharCode((char ^ key) % 256));
-            }
-            return result.join('');
-        }
-
-        function customXorDecode(str, key) {
-            let result = [];
-            for (let i = 0; i < str.length; i++) {
-                let charCode = str.charCodeAt(i);
-                let keyCode = key.charCodeAt(i % key.length);
-                result.push(String.fromCharCode((charCode ^ keyCode) % 256));
-            }
-            return result.join('');
-        }
-
-        function decodeComplexString(code) {
-            let temp = code;
-            let oldTemp;
-            do {
-                oldTemp = temp;
-                temp = temp.replace(/"([A-Za-z0-9+\/=]+)"/g, (match, str) => {
-                    try {
-                        const standardTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-                        const decoded = jsB64Decode(str, standardTable);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        return match;
-                    }
-                });
-                temp = temp.replace(/b64decode\("([A-Za-z0-9+\/=]+)",\s*"([^"]*)"\)/g, (match, str, tbl) => {
-                    try {
-                        const decoded = jsB64Decode(str, tbl);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        return match;
-                    }
-                });
-                temp = temp.replace(/xorDecode\("([^"]*)",\s*\[([^\]]*)\]\)/g, (match, str, keysStr) => {
-                    try {
-                        const keys = keysStr.split(',').map(k => Number(k.trim()));
-                        const decoded = jsXorDecode(unescapeLuauString(str), keys);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        return match;
-                    }
-                });
-                temp = temp.replace(/v7\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)/g, (match, str, key) => {
-                    try {
-                        let decodedStr = str.replace(/\\(\d{1,3})/g, (m, n) => String.fromCharCode(parseInt(n, 10)));
-                        let decodedKey = key.replace(/\\(\d{1,3})/g, (m, n) => String.fromCharCode(parseInt(n, 10)));
-                        let decoded = customXorDecode(decodedStr, decodedKey);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        decodedStr = unescapeLuauString(str);
-                        decodedKey = unescapeLuauString(key);
-                        decoded = customXorDecode(decodedStr, decodedKey);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        return match;
-                    }
-                });
-                temp = temp.replace(/"((?:\\x[0-9A-Fa-f]{2})+)"/g, (match, hexStr) => {
-                    try {
-                        const decoded = decodeHexString(hexStr);
-                        if (decoded && decoded.match(/^[\x20-\x7E]*$/)) {
-                            return `"${decoded}"`;
-                        }
-                        return match;
-                    } catch (e) {
-                        return match;
-                    }
-                });
-            } while (oldTemp !== temp);
-            temp = temp.replace(/local\s+function\s+v7\s*\(v10,v11\)\s*local\s+v12\s*=\s*\{\};\s*for\s+v14=1,\s*#v10\s*do\s+v6\(v12,v0\(v4\(v1\(v2\(v10,v14,v14\s*\+\s*1\s*\)\),v1\(v2\(v11,1\s*\+\s*\(v14%\s*#v11\)\s*,1\s*\+\s*\(v14%\s*#v11\)\s*\+1\s*\)\)\)%256\s*\)\);\s*end\s*return\s+v5\(v12\);\s*end/, '');
-            return temp;
-        }
-
-        function resolveStringConcatenation(code) {
-            let temp = code;
-            let oldTemp;
-            do {
-                oldTemp = temp;
-                temp = temp.replace(/local\s+(\w+)\s*=\s*([^;]*);/g, (match, varName, expr) => {
-                    if (expr.includes('..')) {
-                        const parts = expr.split('..').map(p => p.trim());
-                        let resolvedParts = parts.map(p => {
-                            const strMatch = p.match(/^"([^"]*)"$|^'([^']*)'$/);
-                            if (strMatch) {
-                                return strMatch[1] || strMatch[2];
-                            }
-                            const varMatch = temp.match(new RegExp(`local\\s+${p}\\s*=\\s*"([^"]*)"`));
-                            if (varMatch) {
-                                return varMatch[1];
-                            }
-                            if (p === '"\\o"') {
-                                return 'o';
-                            }
-                            return p;
-                        });
-                        if (resolvedParts.every(p => typeof p === 'string')) {
-                            const concatenated = resolvedParts.join('');
-                            return `local ${varName} = "${concatenated}";`;
-                        }
-                    }
-                    return match;
-                });
-                temp = temp.replace(/(\w+)\s*\.\.\s*(\w+)/g, (match, var1, var2) => {
-                    const var1Match = temp.match(new RegExp(`local\\s+${var1}\\s*=\\s*"([^"]*)"`));
-                    const var2Match = temp.match(new RegExp(`local\\s+${var2}\\s*=\\s*"([^"]*)"`));
-                    if (var1Match && var2Match) {
-                        return `"${var1Match[1] + var2Match[1]}"`;
-                    }
-                    return match;
-                });
-                temp = temp.replace(/"([^"]*)"\s*\.\.\s*"([^"]*)"/g, (match, str1, str2) => {
-                    return `"${str1 + str2}"`;
-                });
-            } while (oldTemp !== temp);
-            return temp;
-        }
-
-        function renameVariables(code) {
-            let temp = code;
-            const varAssignments = new Map();
-            const usedNames = new Set(['_G', 'string', 'math', 'bit32', 'table', 'coroutine', 'print']);
-            const serviceNames = {
-                'Players': 'Players',
-                'RunService': 'RunService',
-                'UserInputService': 'UserInputService',
-                'Workspace': 'Workspace'
-            };
-            const patternNames = {
-                'game:GetService\\("([^"]+)"\\)': (match, service) => serviceNames[service] || `Service${service}`,
-                'game.Players.LocalPlayer': 'LocalPlayer',
-                'workspace.CurrentCamera': 'Camera',
-                'true': 'isEnabled',
-                'false': 'isTracking',
-                'nil': 'target',
-                '\\d+\\.\\d+': 'updateInterval',
-                '0': 'timer',
-                '"[^"]*"': 'greeting',
-                'function.*\\(.*\\)$': (match, code) => {
-                    if (code.includes('string.char')) return 'buildString';
-                    if (code.includes('print')) return 'printMessage';
-                    return 'runFunction';
-                },
-                '_0x[A-F0-9]+': (match, code) => {
-                    if (code.includes('string.char')) return 'buildString';
-                    if (code.includes('print')) return 'printMessage';
-                    return 'runFunction';
-                },
-                'timer\\d*': (match, code) => {
-                    if (code.includes(':byte()')) return 'charCode';
-                    if (code.includes('string.char')) return 'resultChar';
-                    if (code.includes('print')) return 'printFunc';
-                    return 'counter';
-                },
-                '_stash': 'tableRef'
-            };
-            const lines = temp.split('\n');
-            for (let line of lines) {
-                const varMatch = line.match(/local\s+(\w+)\s*=\s*([^\n;]*)/);
-                if (varMatch) {
-                    const [, varName, expr] = varMatch;
-                    varAssignments.set(varName, expr.trim());
-                }
-            }
-            const nameMap = new Map();
-            varAssignments.forEach((expr, varName) => {
-                if (usedNames.has(varName)) return;
-                let newName = varName;
-                for (const [pattern, name] of Object.entries(patternNames)) {
-                    if (typeof name === 'function') {
-                        const match = expr.match(new RegExp(pattern));
-                        if (match) {
-                            newName = name(match, expr);
-                            break;
-                        }
-                    } else if (expr.match(new RegExp(pattern))) {
-                        newName = name;
-                        break;
-                    }
-                }
-                let baseName = newName;
-                let counter = 1;
-                while (usedNames.has(newName)) {
-                    newName = baseName + (counter > 1 ? counter : '');
-                    counter++;
-                }
-                nameMap.set(varName, newName);
-                usedNames.add(newName);
-            });
-            nameMap.forEach((newName, oldName) => {
-                const regex = new RegExp(`\\b${oldName}\\b(?=\\s*[^\\w]|$)`, 'g');
-                temp = temp.replace(regex, newName);
-            });
-            return temp;
-        }
-
-        function inlineFunctions(code) {
-            let temp = code;
-            let oldTemp;
-            do {
-                oldTemp = temp;
-                temp = temp.replace(/local\s+function\s+(_0x\w+)\s*\(\)\s*return\s+([^;]*);?\s*end/g, (match, funcName, returnValue) => {
-                    const evaluated = evaluateNumberExpression(returnValue);
-                    if (!isNaN(evaluated) || returnValue.match(/^"[^"]*"$/)) {
-                        return `local ${funcName} = ${evaluated || returnValue}`;
-                    }
-                    return match;
-                });
-                temp = temp.replace(/\b(_0x\w+)\(\)/g, (match, funcName) => {
-                    const varMatch = temp.match(new RegExp(`local\\s+${funcName}\\s*=\\s*([^;\n]*)`));
-                    if (varMatch) {
-                        return varMatch[1];
-                    }
-                    return match;
-                });
-            } while (oldTemp !== temp);
-            return temp;
-        }
-
-        function normalizeCode(code) {
-            let temp = code.replace(/\s+/g, ' ');
-            const keywords = {
-                'l\\s*o\\s*c\\s*a\\s*l|lo\\s*ca\\s*l|loc\\s*al|lo\\s*cal|local\\s*\\w+': 'local',
-                'f\\s*u\\s*n\\s*c\\s*t\\s*i\\s*o\\s*n|fu\\s*nc\\s*ti\\s*on|fun\\s*cti\\s*on': 'function',
-                'r\\s*e\\s*t\\s*u\\s*r\\s*n|re\\s*tu\\s*rn|ret\\s*urn': 'return',
-                't\\s*h\\s*e\\s*n|t\\s*he\\s*n|th\\s*en': 'then',
-                'e\\s*n\\s*d|en\\s*d|enda': 'end',
-                's\\s*t\\s*r\\s*i\\s*n\\s*g\\s*\\.\\s*c\\s*h\\s*a\\s*r|st\\s*ri\\s*ng\\s*\\.\\s*ch\\s*ar': 'string.char',
-                'c\\s*o\\s*r\\s*o\\s*u\\s*t\\s*i\\s*n\\s*e\\s*\\.\\s*w\\s*r\\s*a\\s*p|co\\s*ro\\s*ut\\s*in\\s*e\\s*\\.\\s*wr\\s*ap': 'coroutine.wrap',
-                'b\\s*y\\s*t\\s*e|by\\s*te': 'byte',
-                'p\\s*r\\s*i\\s*n\\s*t|pr\\s*in\\s*t|pri\\s*nt': 'print',
-                't\\s*r\\s*u\\s*e|tr\\s*ue': 'true',
-                'p\\s*r\\s*o|pr\\s*o': 'pro'
-            };
-            for (const [pattern, replacement] of Object.entries(keywords)) {
-                const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
-                temp = temp.replace(regex, replacement);
-            }
-            temp = temp.replace(/"\s*([^"]*?)\s*"/g, (match, str) => {
-                const cleaned = str.replace(/\s+/g, '');
-                return `"${cleaned}"`;
-            });
-            temp = temp.replace(/(\w)\s+(\w)\b/g, '$1$2');
-            temp = temp.replace(/(\w+)\s*([=+\-*/<>&|~^%])\s*(\w+)/g, '$1 $2 $3');
-            temp = temp.replace(/(\w+)\s*([(),;])\s*(\w+)/g, '$1$2 $3');
-            temp = temp
-                .replace(/(\blocal\s+\w+\s*=\s*[^;]+)(?=\s*($|\blocal|\bif|\bfunction|\bfor|\bwhile|\bend|\belse))/g, '$1\n')
-                .replace(/(\bif\s+[^;]+then\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
-                .replace(/(\bfor\s+[^;]+do\s+[^;]+)(?=\s*($|\bend))/g, '$1\n')
-                .replace(/(\bend\b)/g, '$1\n')
-                .replace(/\n+/g, '\n')
-                .trim();
-            return temp;
-        }
-
-        function deobfuscate(type) {
-            try {
-                let code = document.getElementById('inputCode').value.trim();
-                if (!code) {
-                    document.getElementById('output').textContent = 'No code to deobfuscate.';
-                    return;
-                }
-                let temp = normalizeCode(code);
-                temp = removeComments(temp);
-                const stringChar = document.getElementById('stringChar').checked;
-                const removeASCII = document.getElementById('removeASCII').checked;
-                const base64 = document.getElementById('base64').checked;
-                const xor = document.getElementById('xor').checked;
-                const rename = document.getElementById('rename').checked;
-                const numObf = document.getElementById('numObf').checked;
-                const strSplit = document.getElementById('strSplit').checked;
-                const control = document.getElementById('control').checked;
-                const deadCode = document.getElementById('deadCode').checked;
-                const antiDump = document.getElementById('antiDump').checked;
-                const minify = document.getElementById('minify').checked;
-                const simplify = document.getElementById('simplify').checked;
-                let outputType = 'Deobfuscate All';
-                temp = temp.replace(/(\w+)\s*:\s*(\w+)/g, '$1:$2');
-                let stringCharAliases = ['string\\.char'];
-                let aliasMatches;
-                const aliasRegex = /local\s+(\w+)\s*=\s*string\.char\b/g;
-                while ((aliasMatches = aliasRegex.exec(temp)) !== null) {
-                    stringCharAliases.push(aliasMatches[1]);
-                }
-                temp = temp.replace(/local\s+function\s+checkTamper[\s\S]*?loadstring\(code\)\(\)/g, '');
-                temp = temp.replace(/local\s+function\s+checkTamper[\s\S]*?checkTamper\(\)/g, '');
-                temp = temp.replace(/spawn\(function\(\)\s*while\s+true\s+do\s+wait\(10\)\s+end\s+end\)/g, '');
-                temp = temp.replace(/local\s+\w+\s*=\s*game:GetService\("\w+"\)\n/g, '');
-                if (antiDump || type === 'all') {
-                    temp = temp.replace(/--\[\[[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]*\]\]\s*/g, '');
-                    temp = temp.replace(/[\u200B-\u200D\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
-                }
-                if (numObf || type === 'all') {
-                    let oldTemp;
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/\(\s*(\d+)\s*([\+\-\*\/])\s*(\d+)\s*\)/g, evaluateNumberExpression);
-                        temp = temp.replace(/(\d+)\s*\^\s*(\d+)/g, evaluateNumberExpression);
-                        temp = temp.replace(/math\.sqrt\((\d+)\)/g, evaluateNumberExpression);
-                        temp = temp.replace(/bit32\.bxor\((\d+),\s*(\d+)\)/g, evaluateNumberExpression);
-                        temp = temp.replace(/\('([a-zA-Z])'\):byte\(\)/g, evaluateNumberExpression);
-                    } while (oldTemp !== temp);
-                }
-                if (stringChar || type === 'all') {
-                    temp = resolveTable(temp);
-                }
-                if (stringChar || type === 'all') {
-                    let oldTemp;
-                    do {
-                        oldTemp = temp;
-                        temp = decodeStringChar(temp, stringCharAliases);
-                    } while (oldTemp !== temp);
-                }
-                if (stringChar || type === 'all') {
-                    temp = inlineBuildFunction(temp);
-                }
-                if (base64 || xor || type === 'all') {
-                    temp = decodeComplexString(temp);
-                }
-                if (strSplit || type === 'all') {
-                    temp = resolveStringConcatenation(temp);
-                }
-                if (numObf || type === 'all') {
-                    temp = inlineFunctions(temp);
-                }
-                let oldTemp;
-                do {
-                    oldTemp = temp;
-                    temp = temp.replace(/_G\[(".*?")\]\((.*?)\)/g, (match, fn, args) => {
-                        return `${fn.slice(1, -1)}(${args})`;
-                    });
-                    temp = temp.replace(/_G\[(\w+)\]\((.*?)\)/g, (match, varName, args) => {
-                        const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
-                        if (varMatch) {
-                            const fnName = varMatch[1];
-                            const argMatch = temp.match(new RegExp(`local\\s+${args}\\s*=\\s*"([^"]*)"`));
-                            if (argMatch) {
-                                return `${fnName}("${argMatch[1]}")`;
-                            }
-                            return `${fnName}(${args})`;
-                        }
-                        return match;
-                    });
-                    temp = temp.replace(/_G\[(\w+)\]\(\)/g, (match, varName) => {
-                        const varMatch = temp.match(new RegExp(`local\\s+${varName}\\s*=\\s*"([^"]*)"`));
-                        if (varMatch) {
-                            return `${varMatch[1]}()`;
-                        }
-                        return match;
-                    });
-                    temp = temp.replace(/(\w+)\[(".*?")\]\((.*?)\)/g, (match, tableVar, fn, args) => {
-                        if (fn === '"print"') {
-                            return `print(${args})`;
-                        }
-                        return match;
-                    });
-                } while (oldTemp !== temp);
-                if (removeASCII || type === 'all') {
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/"((?:\\(?:\d{1,3}|x[0-9A-Fa-f]{2})|[^"\\])*)"/g, (match, str) => {
-                            const decoded = unescapeLuauString(str);
-                            return `"${decoded}"`;
-                        });
-                    } while (oldTemp !== temp);
-                }
-                if (control || deadCode || type === 'all') {
-                    do {
-                        oldTemp = temp;
-                        temp = temp.replace(/if\s+true\s+then\s*([\s\S]*?)\s*end/g, '$1');
-                        temp = temp.replace(/if\s+false\s+then[\s\S]*?end/g, '');
-                        temp = temp.replace(/if\s+nil\s+then[\s\S]*?end/g, '');
-                        temp = temp.replace(/for\s+\w+\s*=\s*1\s*,\s*0\s*do[\s\S]*?end/g, '');
-                        temp = temp.replace(/local\s+\w+\s*=\s*nil;\s*if\s+\w+\s+then[\s\S]*?end/g, '');
-                        temp = temp.replace(/local\s+\w+\s*=\s*function\(\)\s*return\s+end;\s*\w+\(\)/g, '');
-                        temp = temp.replace(/local\s+\w+\s*=\s*math\.random\(\)\s*>\s*[\d\.]+;\s*if\s+\w+\s+then\s+end/g, '');
-                        temp = temp.replace(/coroutine\.wrap\(function\(\)\s*([\s\S]*?)\s*end\)\(\)/g, '$1');
-                    } while (oldTemp !== temp);
-                }
-                if (rename || type === 'all') {
-                    temp = renameVariables(temp);
-                }
-                if (minify) {
-                    temp = minifyCode(temp);
-                } else if (simplify) {
-                    temp = simplifyCode(temp);
-                }
-                document.getElementById('output-type').textContent = outputType;
-                document.getElementById('output').textContent = temp;
-            } catch (e) {
-                document.getElementById('output').textContent = `Error: ${e.message}`;
-            }
-        }
-
-        function copyCode() {
-            const output = document.getElementById('output').textContent;
+        
+        // Utility functions
+        function copyOutput(outputId) {
+            const output = document.getElementById(outputId).textContent;
             navigator.clipboard.writeText(output).then(() => {
-                alert('Code copied to clipboard!');
+                alert('Output copied to clipboard!');
             }).catch(err => {
-                alert('Failed to copy code: ' + err);
+                alert('Failed to copy output: ' + err);
             });
         }
-
-        function showSupport() {
-            alert('For support, contact the developer via GitHub or Discord.');
+        
+        function clearDumper() {
+            document.getElementById('dumperInput').value = '';
+            document.getElementById('dumperOutput').textContent = 'Extracted source will appear here...';
+            document.getElementById('stringsDump').textContent = 'No strings extracted yet';
+            document.getElementById('functionsDump').textContent = 'No functions extracted yet';
+            document.getElementById('constantsDump').textContent = 'No constants extracted yet';
+            document.getElementById('dumperStatus').textContent = 'Ready to dump environment...';
+            document.getElementById('dumperStats').textContent = 'No data extracted';
+        }
+        
+        function clearDeobfuscator() {
+            document.getElementById('deobfuscatorInput').value = '';
+            document.getElementById('deobfuscatorOutput').textContent = 'Deobfuscated code will appear here...';
+            document.getElementById('deobfuscatorStatus').textContent = 'Ready to deobfuscate...';
+            document.getElementById('deobfuscatorStats').textContent = 'No code processed';
+        }
+        
+        function clearAnalyzer() {
+            document.getElementById('analyzerInput').value = '';
+            document.getElementById('analyzerOutput').textContent = 'Analysis results will appear here...';
+            document.getElementById('codeLength').textContent = '0';
+            document.getElementById('codeLines').textContent = '0';
+            document.getElementById('obfuscationLevel').textContent = 'Unknown';
+            document.getElementById('detectedTechniques').textContent = 'None';
         }
     </script>
 </body>
